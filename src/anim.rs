@@ -151,7 +151,15 @@ pub fn toggle(ui: &Ui, key: u32, on: bool, duration: f32) -> f32 {
     let d = (duration * st.scale).max(1e-3);
     let v = step(ui, key, st.controls, |v, dt| {
         let s = dt / d;
-        if target > v { (v + s).min(1.0) } else { (v - s).max(0.0) }
+        // Clamp to the target itself: stepping past it and clamping to
+        // 0 / 1 would overshoot by one step every other frame and jitter.
+        if v < target {
+            (v + s).min(target)
+        } else if v > target {
+            (v - s).max(target)
+        } else {
+            v
+        }
     }, target);
     ease_out(v)
 }
