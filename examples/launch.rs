@@ -51,8 +51,8 @@ const ACTIVE_PERIOD: Duration = Duration::from_millis(1000 / 60);
 /// Frame period for self-animating content while the window is not focused.
 const BACKGROUND_PERIOD: Duration = Duration::from_millis(1000 / 15);
 /// Keep rendering this long after the last input so imgui settles
-/// (hover, release, animations that start on the click).
-const INPUT_GRACE: Duration = Duration::from_millis(300);
+/// (hover, release, trickled key events, animations that start on the click).
+const INPUT_GRACE: Duration = Duration::from_millis(500);
 
 fn main() {
     let (event_loop, window, surface, context) = create_window();
@@ -142,7 +142,11 @@ fn main() {
                 let ui = imgui.frame();
                 let display = ui.io().display_size;
                 let ev = screen.draw(ui, &fonts, display);
-                animating = anim::animating(ui) || screen.is_animating();
+                // Keep frames coming while something moves, and while a text
+                // field has focus: imgui trickles queued key events one per
+                // frame (a fast burst would lose its tail otherwise) and the
+                // caret has to blink.
+                animating = anim::animating(ui) || screen.is_animating() || ui.io().want_text_input;
 
                 // Map tiles the view asked for this frame: decode + upload.
                 load_pending_tiles(renderer.gl_context(), &mut screen.gallery.map.tiles);
