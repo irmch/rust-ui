@@ -45,7 +45,7 @@ impl Default for Gallery {
             login: "player_one".into(),
             password: String::new(),
             proxy: String::new(),
-            path: r"C:\Games\Path of Exile 2".into(),
+            path: r"C:\Games\MyGame".into(),
             region: Region::Eu,
             switches: [true, false, true, false],
             checks: [true, false, false],

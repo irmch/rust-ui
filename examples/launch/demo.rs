@@ -42,7 +42,7 @@ impl Default for LaunchScreen {
     fn default() -> Self {
         Self {
             tab: 0,
-            game_path: r"C:\Games\Path of Exile 2\PathOfExile.exe".into(),
+            game_path: r"C:\Games\MyGame\Game.exe".into(),
             path_ok: true,
             auto_restart: true,
             safe_mode: false,
