@@ -40,6 +40,25 @@ impl Kit {
 pub struct UiState {
     open: RefCell<HashMap<u32, bool>>,
     tab: RefCell<HashMap<u32, usize>>,
+    /// Keyboard navigation of the combo list that is open right now.
+    pub(crate) combo: RefCell<ComboNav>,
+}
+
+/// Which row of the open combo list the keyboard points at. One combo is
+/// open at a time, so a single record is enough; `key` tells whose it is.
+#[derive(Default)]
+pub(crate) struct ComboNav {
+    pub key: u32,
+    /// Highlighted row, `-1` = none yet (the selected row takes it).
+    pub index: i32,
+    /// Rows drawn this frame so far; reset by `combo_begin`.
+    pub count: usize,
+    /// Rows drawn last frame, to clamp `index`.
+    pub last_count: usize,
+    /// The highlight moved this frame: scroll it into view.
+    pub moved: bool,
+    /// Enter was pressed this frame: the highlighted row is picked.
+    pub enter: bool,
 }
 
 impl UiState {

@@ -51,6 +51,12 @@ pub fn list_row(ui: &Ui, kit: &Kit, id: &str, selected: bool, height: f32, body:
 /// One-line selectable text row (28 px): hover bg-2, selected bg-sel with
 /// bold text. Returns `true` on click.
 pub fn selectable(ui: &Ui, kit: &Kit, label: &str, selected: bool) -> bool {
+    selectable_row(ui, kit, label, selected, false)
+}
+
+/// [`selectable`] with an extra keyboard-highlight state (bg-2 fill, as on
+/// hover), used by combo lists.
+pub(crate) fn selectable_row(ui: &Ui, kit: &Kit, label: &str, selected: bool, highlighted: bool) -> bool {
     let _id = ui.push_id(label);
     let shown = label.split("##").next().unwrap_or("");
     let p = ui.cursor_screen_pos();
@@ -62,7 +68,7 @@ pub fn selectable(ui: &Ui, kit: &Kit, label: &str, selected: bool) -> bool {
     let dl = ui.get_window_draw_list();
     if selected {
         dl.add_rect(p, [p[0] + w, p[1] + h], fade(color::SEL, al)).rounding(size::RADIUS).filled(true).build();
-    } else if hovered {
+    } else if hovered || highlighted {
         dl.add_rect(p, [p[0] + w, p[1] + h], fade(color::BG2, al)).rounding(size::RADIUS).filled(true).build();
     }
     let _f = ui.push_font(if selected { kit.fonts.mono13b } else { kit.fonts.mono13 });

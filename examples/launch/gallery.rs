@@ -39,6 +39,7 @@ pub struct Gallery {
     pub map: MapPage,
     // new components
     pub combo_idx: usize,
+    pub server_idx: usize,
     pub count: i32,
     pub notes: String,
     pub toggles: [bool; 2],
@@ -63,6 +64,7 @@ impl Default for Gallery {
             events: Vec::new(),
             map: MapPage::default(),
             combo_idx: 0,
+            server_idx: 3,
             count: 1500,
             notes: "Multi-line notes…".into(),
             toggles: [true, false],
@@ -321,6 +323,10 @@ impl Gallery {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, space::S]));
             w::caption(ui, kit, "Region");
             w::combo(ui, kit, "##region_combo", &["Europe", "United States", "Asia", "Oceania"], &mut self.combo_idx, 240.0);
+            w::caption(ui, kit, "Server · long list scrolls after 10 rows");
+            let servers: Vec<String> = (1..=24).map(|i| format!("Server {i:02}")).collect();
+            let refs: Vec<&str> = servers.iter().map(String::as_str).collect();
+            w::combo(ui, kit, "##server_combo", &refs, &mut self.server_idx, 240.0);
             w::caption(ui, kit, "Cooldown");
             w::number_input(ui, kit, "##cooldown", &mut self.count, 0, 600_000, 100, "ms", 200.0);
             w::caption(ui, kit, "Notes");

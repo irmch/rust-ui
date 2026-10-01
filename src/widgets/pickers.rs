@@ -1,4 +1,4 @@
-use imgui::{PopupToken, StyleColor, StyleVar, Ui};
+use imgui::{Key, PopupToken, StyleColor, StyleVar, Ui};
 
 use crate::Kit;
 use crate::theme::ButtonKind;
@@ -11,10 +11,14 @@ use super::*;
 // Combo (dropdown)
 // ---------------------------------------------------------------------------
 
+/// Rows a combo list shows before it scrolls.
+pub const COMBO_MAX_ROWS: usize = 10;
+
 /// Opens a dropdown: a 32 px frame showing `preview` with a chevron, and
 /// when clicked a popup below it. Returns the popup token while it is open;
 /// draw the options with [`combo_item`] inside. `width` `0.0` uses imgui's
-/// item width (`set_next_item_width` is honoured).
+/// item width (`set_next_item_width` is honoured). The list scrolls after
+/// [`COMBO_MAX_ROWS`]; Up / Down move a highlight, Enter picks it.
 ///
 /// ```no_run
 /// # use imgui_kit::widgets as w;
@@ -54,12 +58,20 @@ pub fn combo_begin<'ui>(ui: &'ui Ui, kit: &Kit, id: &str, preview: &str, width: 
     if clicked {
         ui.open_popup(&popup_id);
     }
-    // The list opens right under the frame, as wide as the frame.
+    // The list opens right under the frame, as wide as the frame, and
+    // scrolls once it is taller than COMBO_MAX_ROWS rows.
+    let max_h = COMBO_MAX_ROWS as f32 * size::ROW + 2.0 * space::XS;
     unsafe {
         imgui::sys::igSetNextWindowPos(
             imgui::sys::ImVec2 { x: p[0], y: p[1] + h + 2.0 },
             imgui::Condition::Always as i32,
             imgui::sys::ImVec2 { x: 0.0, y: 0.0 },
+        );
+        imgui::sys::igSetNextWindowSizeConstraints(
+            imgui::sys::ImVec2 { x: w, y: 0.0 },
+            imgui::sys::ImVec2 { x: w, y: max_h },
+            None,
+            std::ptr::null_mut(),
         );
         imgui::sys::igSetNextWindowSize(imgui::sys::ImVec2 { x: w, y: 0.0 }, imgui::Condition::Always as i32);
     }
@@ -70,16 +82,52 @@ pub fn combo_begin<'ui>(ui: &'ui Ui, kit: &Kit, id: &str, preview: &str, width: 
     let _border = ui.push_style_var(StyleVar::PopupBorderSize(size::BORDER));
     let _bg = ui.push_style_color(StyleColor::PopupBg, color::BG1);
     let _bd = ui.push_style_color(StyleColor::Border, color::LINE2);
-    let _ = kit;
-    ui.begin_popup(&popup_id)
+    let token = ui.begin_popup(&popup_id)?;
+    // Keyboard: the popup is now the current window.
+    let key = crate::anim::key(ui, &popup_id);
+    let mut nav = kit.state.combo.borrow_mut();
+    if nav.key != key {
+        *nav = crate::kit::ComboNav { key, index: -1, ..Default::default() };
+    }
+    nav.last_count = nav.count;
+    nav.count = 0;
+    nav.moved = false;
+    let last = nav.last_count as i32;
+    if ui.is_key_pressed(Key::DownArrow) && last > 0 {
+        nav.index = (nav.index + 1).min(last - 1);
+        nav.moved = true;
+    }
+    if ui.is_key_pressed(Key::UpArrow) && last > 0 {
+        nav.index = (nav.index - 1).max(0);
+        nav.moved = true;
+    }
+    nav.enter = ui.is_key_pressed(Key::Enter) || ui.is_key_pressed(Key::KeypadEnter);
+    if ui.is_key_pressed(Key::Escape) {
+        ui.close_current_popup();
+    }
+    Some(token)
 }
 
-/// One option of an open [`combo_begin`] list; closes the list when picked.
+/// One option of an open [`combo_begin`] list; closes the list when picked
+/// (by click, or by Enter while the keyboard highlight is on it).
 pub fn combo_item(ui: &Ui, kit: &Kit, label: &str, selected: bool) -> bool {
-    let picked = selectable(ui, kit, label, selected);
+    let (idx, highlighted, enter, moved) = {
+        let mut nav = kit.state.combo.borrow_mut();
+        let idx = nav.count;
+        nav.count += 1;
+        if nav.index < 0 && selected {
+            nav.index = idx as i32;
+        }
+        (idx, nav.index == idx as i32, nav.enter, nav.moved)
+    };
+    if highlighted && moved {
+        ui.set_scroll_here_y_with_ratio(0.5);
+    }
+    let picked = selectable_row(ui, kit, label, selected, highlighted) || (highlighted && enter);
     if picked {
         ui.close_current_popup();
     }
+    let _ = idx;
     picked
 }
 
