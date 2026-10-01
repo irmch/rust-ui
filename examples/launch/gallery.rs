@@ -37,6 +37,13 @@ pub struct Gallery {
     pub events: Vec<String>,
     /// The Map tab.
     pub map: MapPage,
+    // new components
+    pub combo_idx: usize,
+    pub count: i32,
+    pub notes: String,
+    pub toggles: [bool; 2],
+    pub seg: usize,
+    pub row_selected: Option<usize>,
 }
 
 impl Default for Gallery {
@@ -55,6 +62,12 @@ impl Default for Gallery {
             disabled: true,
             events: Vec::new(),
             map: MapPage::default(),
+            combo_idx: 0,
+            count: 1500,
+            notes: "Multi-line notes…".into(),
+            toggles: [true, false],
+            seg: 0,
+            row_selected: Some(1),
         }
     }
 }
@@ -172,6 +185,42 @@ impl Gallery {
 
         grid::section_gap(ui);
 
+        w::section(ui, kit, "List rows · avatar · stat bars");
+        for (i, (mail, _, kind, _)) in ACCOUNTS.iter().take(3).enumerate() {
+            let selected = self.row_selected == Some(i);
+            let clicked = w::list_row(ui, kit, &format!("row{i}"), selected, 0.0, |ui| {
+                w::avatar(ui, kit, &mail[..1].to_uppercase(), 28.0, selected);
+                ui.same_line_with_spacing(0.0, space::M);
+                ui.group(|| {
+                    w::text_bold(ui, kit, mail, color::FG);
+                    w::stat_bar(ui, 0.3 + 0.2 * i as f32, color::ERR, 160.0, 0.0);
+                    w::stat_bar(ui, 0.8 - 0.2 * i as f32, color::INFO, 160.0, 0.0);
+                });
+                ui.same_line_with_spacing(0.0, space::L);
+                w::status_dot(ui, status_color(*kind), "");
+            });
+            if clicked {
+                self.row_selected = Some(i);
+            }
+        }
+        ui.dummy([0.0, space::S]);
+        w::caption(ui, kit, "Selectable rows");
+        for (i, name) in ["Wolf", "Keltir", "Orc"].iter().enumerate() {
+            if w::selectable(ui, kit, name, self.seg == i) {
+                self.seg = i;
+            }
+        }
+        ui.dummy([0.0, space::S]);
+        w::spinner(ui, 20.0, color::FG2);
+        ui.same_line_with_spacing(0.0, space::M);
+        w::text_muted(ui, "Loading…");
+        ui.dummy([0.0, space::S]);
+        w::panel(ui, "##empty", [0.0, 140.0], |ui| {
+            w::empty_state(ui, kit, Some("○"), "No bots connected", "Enable monitoring to find clients");
+        });
+
+        grid::section_gap(ui);
+
         w::section(ui, kit, "Log lines");
         w::panel(ui, "##acc_log", [0.0, 7.0 * 16.0 + 2.0 * space::S], |ui| {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
@@ -264,6 +313,19 @@ impl Gallery {
         }
         w::verified_line(ui, kit, true, "Verified", "MyGame");
         w::verified_line(ui, kit, false, "Not found", "check the path");
+
+        grid::section_gap(ui);
+
+        w::section(ui, kit, "Combo · number input · textarea");
+        {
+            let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, space::S]));
+            w::caption(ui, kit, "Region");
+            w::combo(ui, kit, "##region_combo", &["Europe", "United States", "Asia", "Oceania"], &mut self.combo_idx, 240.0);
+            w::caption(ui, kit, "Cooldown");
+            w::number_input(ui, kit, "##cooldown", &mut self.count, 0, 600_000, 100, "ms", 200.0);
+            w::caption(ui, kit, "Notes");
+            w::textarea(ui, kit, "notes", &mut self.notes, 4, 480.0);
+        }
 
         grid::section_gap(ui);
 
@@ -434,6 +496,36 @@ impl Gallery {
 
         grid::section_gap(ui);
 
+        w::section(ui, kit, "Toggle buttons · segmented · modal · tooltip");
+        w::toggle_button(ui, kit, "Aggressive only", &mut self.toggles[0]);
+        ui.same_line_with_spacing(0.0, space::S);
+        w::toggle_button(ui, kit, "Polite hunting", &mut self.toggles[1]);
+        ui.same_line_with_spacing(0.0, space::L);
+        w::segmented(ui, kit, "##view", &["List", "Grid", "Map"], &mut self.seg);
+        ui.dummy([0.0, space::S]);
+        if w::button(ui, kit, ButtonKind::Danger, "Delete profile…") {
+            w::open_modal(ui, "Delete profile?##gallery_modal");
+        }
+        w::tooltip_on_hover(ui, kit, "Opens a modal dialog");
+        let mut confirmed = false;
+        w::modal(ui, kit, "Delete profile?##gallery_modal", Some([360.0, 0.0]), |ui| {
+            w::text_muted(ui, "This cannot be undone.");
+            ui.dummy([0.0, space::L]);
+            if w::button(ui, kit, ButtonKind::Secondary, "Cancel") {
+                ui.close_current_popup();
+            }
+            ui.same_line_with_spacing(0.0, space::S);
+            if w::button(ui, kit, ButtonKind::Danger, "Delete") {
+                confirmed = true;
+                ui.close_current_popup();
+            }
+        });
+        if confirmed {
+            self.note("profile deleted (modal)");
+        }
+
+        grid::section_gap(ui);
+
         w::section(ui, kit, "Call to action · 48 px");
         if w::cta(ui, kit, ButtonKind::Primary, "Launch 6 windows") {
             self.note("cta primary");
@@ -482,6 +574,22 @@ impl Gallery {
                 kit.anim.set(st);
             }
         }
+
+        grid::section_gap(ui);
+
+        w::section(ui, kit, "Accordion · tabs");
+        w::accordion_section(ui, kit, "Safety", None, true, |ui| {
+            w::checkbox(ui, kit, "Stop on player detection", None, &mut self.checks[0]);
+            w::checkbox(ui, kit, "Logout on PK", None, &mut self.checks[1]);
+        });
+        w::accordion_section(ui, kit, "Advanced settings", Some("◆"), false, |ui| {
+            w::text_muted(ui, "Hidden until opened; state is kept per imgui ID.");
+        });
+        ui.dummy([0.0, space::S]);
+        w::tabs(ui, kit, "##demo_tabs", &["List", "Map", "Logs"], |ui, idx| {
+            w::text_muted(ui, &format!("Contents of tab {idx} (stateful tabs)"));
+        });
+        w::divider(ui);
 
         grid::section_gap(ui);
 

@@ -32,6 +32,21 @@ pub(super) fn ascent(ui: &Ui, font: imgui::FontId) -> f32 {
 }
 
 /// `text` in upper case, borrowed when it already is (no per-frame allocation).
+/// Draws an 8 px chevron (open: pointing down, else right) with its box at
+/// `p`; drawn with lines so it looks the same in every font and size.
+pub fn chevron(dl: &imgui::DrawListMut, p: [f32; 2], open: bool, col: Rgba) {
+    let (a, b, c) = if open {
+        ([p[0] + 1.0, p[1] + 2.5], [p[0] + 4.0, p[1] + 5.5], [p[0] + 7.0, p[1] + 2.5])
+    } else {
+        ([p[0] + 2.5, p[1] + 1.0], [p[0] + 5.5, p[1] + 4.0], [p[0] + 2.5, p[1] + 7.0])
+    };
+    dl.add_line(a, b, col).thickness(1.5).build();
+    dl.add_line(b, c, col).thickness(1.5).build();
+}
+
+/// Size of the [`chevron`] box.
+pub const CHEVRON: f32 = 8.0;
+
 pub fn upper(text: &str) -> std::borrow::Cow<'_, str> {
     if text.chars().any(char::is_lowercase) {
         std::borrow::Cow::Owned(text.to_uppercase())

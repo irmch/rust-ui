@@ -10,10 +10,10 @@ The design source is the canvas **ImGui Rust UI Kit**
 |---|---|---|
 | 01 Foundations | `tokens`, `theme`, `fonts` | 16 colour tokens → `StyleColor`, spacing, sizes, 6-font atlas |
 | 02 Grid & layout | `grid` | 12 × 88 + 11 × 16 + 2 × 24 = 1280, pane split 5 / 7, form row `96 \| stretch \| 64`, alignment helpers, all `Style` vars in `theme::apply` |
-| 03 Controls | `widgets::{buttons, controls, sliders, inputs}` | button variants, checkbox, radio, switch, 4 px slider, progress, inputs, path group |
-| 04 Navigation & overlays | `widgets::{bars}` | title bar with sliding tabs, status strip, panels, cards, banners, log panels |
-| 05 Data & feedback | `widgets::{text, status}` | captions, log line, tags, stat, status dot |
-| — | `kit` | `Kit { fonts, anim }`: the context every widget takes as `&Kit` |
+| 03 Controls | `widgets::{buttons, controls, sliders, inputs, pickers}` | button variants, toggle button, checkbox, radio, switch, 4 px slider, progress, inputs, textarea, number input, combo, segmented, path group |
+| 04 Navigation & overlays | `widgets::{bars, lists, feedback}` | title bar with sliding tabs, tab strip, stateful tabs, accordion, status strip, panels, cards, banners, log panels, modal, tooltip |
+| 05 Data & feedback | `widgets::{text, status, lists, feedback}` | captions, log line, tags, stat, status dot, list row, selectable, avatar, stat bar, spinner, empty state, divider |
+| — | `kit` | `Kit { fonts, anim, state }`: the context every widget takes as `&Kit`; `state` keeps accordion / tab state per imgui ID |
 | — | `anim` | toggle, tab and page animations with per-`Kit` settings |
 | — | `map` | tiled map view: camera, tile layers loaded block-wise, world-unit canvas |
 | 06 Reference screen | `examples/launch/` | the Launch screen, the widget gallery and the L2 map page |

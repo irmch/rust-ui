@@ -1,9 +1,9 @@
-use imgui::Ui;
+use imgui::{StyleVar, Ui};
 
 use crate::Kit;
 use crate::grid;
 use crate::theme::ButtonKind;
-use crate::tokens::size;
+use crate::tokens::{size, space};
 
 #[allow(unused_imports)]
 use super::*;
@@ -67,4 +67,14 @@ pub fn path_input(ui: &Ui, kit: &Kit, id: &str, buf: &mut String) -> (bool, bool
     ui.same_line();
     let open = button_sized(ui, kit, ButtonKind::Secondary, "Open", [size::BTN_OPEN, size::CONTROL]);
     (browse, open)
+}
+
+/// Multi-line text field `rows` lines tall (`width` `0.0` = fill); returns
+/// `true` when the text changed.
+pub fn textarea(ui: &Ui, kit: &Kit, id: &str, buf: &mut String, rows: u32, width: f32) -> bool {
+    let _f = ui.push_font(kit.fonts.mono13);
+    let w = if width > 0.0 { width } else { ui.content_region_avail()[0] };
+    let h = ui.text_line_height() * rows.max(1) as f32 + 2.0 * space::S;
+    let _pad = ui.push_style_var(StyleVar::FramePadding([size::PAD_X, space::S]));
+    ui.input_text_multiline(format!("##{id}"), buf, [w, h]).build()
 }
