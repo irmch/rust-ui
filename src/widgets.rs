@@ -13,6 +13,13 @@ use crate::tokens::{color, size, space, Rgba};
 // Text
 // ---------------------------------------------------------------------------
 
+/// Ascent of `font` in screen pixels, for aligning texts of different sizes
+/// on one baseline (`y_small = y_big + ascent(big) - ascent(small)`).
+fn ascent(ui: &Ui, font: imgui::FontId) -> f32 {
+    let a = ui.fonts().get_font(font).map_or(0.0, |f| f.ascent * f.scale);
+    (a * ui.io().font_global_scale).round()
+}
+
 /// Caption: 10 px semibold uppercase, fg-3 ("GAME PATH").
 pub fn caption(ui: &Ui, f: &Fonts, text: &str) {
     let _f = ui.push_font(f.mono10);
@@ -321,7 +328,11 @@ pub fn labeled_slider(
     let id = format!("##row_{label}");
     grid::form_row(ui, &id, |ui, cell, w| match cell {
         grid::FormCell::Label => {
-            grid::vcenter(ui, 16.0, size::CONTROL);
+            let cap_h = {
+                let _f = ui.push_font(f.mono10);
+                ui.text_line_height()
+            };
+            grid::vcenter(ui, cap_h, size::CONTROL);
             caption(ui, f, label);
         }
         grid::FormCell::Control => {
@@ -456,11 +467,27 @@ pub fn status_dot(ui: &Ui, col: Rgba, text: &str) {
 
 /// Stat item of the status strip: `CAPTION  Value unit`. `col` colours the value.
 pub fn stat(ui: &Ui, f: &Fonts, cap: &str, value: &str, unit: &str, col: Rgba) {
-    caption(ui, f, cap);
-    ui.same_line_with_spacing(0.0, space::S);
-    text_bold(ui, f, value, col);
+    // The cursor marks the top of the 13 px value; the 10 px caption and the
+    // unit are placed explicitly on the same baseline (no `same_line`, which
+    // would snap back to whatever line y imgui remembers).
+    let [x, y] = ui.cursor_pos();
+    let asc_val = ascent(ui, f.mono13b);
+    let cap_txt = cap.to_uppercase();
+    let cap_w = {
+        let _f = ui.push_font(f.mono10);
+        ui.set_cursor_pos([x, y + asc_val - ascent(ui, f.mono10)]);
+        ui.text_colored(color::FG3, &cap_txt);
+        ui.calc_text_size(&cap_txt)[0]
+    };
+    let x = x + cap_w + space::S;
+    let val_w = {
+        let _f = ui.push_font(f.mono13b);
+        ui.set_cursor_pos([x, y]);
+        ui.text_colored(col, value);
+        ui.calc_text_size(value)[0]
+    };
     if !unit.is_empty() {
-        ui.same_line_with_spacing(0.0, space::XS);
+        ui.set_cursor_pos([x + val_w + space::XS, y + asc_val - ascent(ui, f.mono13)]);
         ui.text_colored(color::FG3, unit);
     }
 }
@@ -511,16 +538,20 @@ pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], acti
         .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE | WindowFlags::ALWAYS_USE_WINDOW_PADDING)
         .build(|| {
             bottom_border(ui);
-            // left: app / crumb
-            {
+            // left: app / crumb, the 13 px texts on the 16 px app baseline
+            let x0 = ui.cursor_pos()[0];
+            let (y16, app_w) = {
                 let _f = ui.push_font(f.mono16b);
-                grid::vcenter_at(ui, ui.text_line_height(), 0.0, size::BAR);
+                let y = ((size::BAR - ui.text_line_height()) / 2.0).round();
+                ui.set_cursor_pos([x0, y]);
                 ui.text(app);
-            }
-            ui.same_line_with_spacing(0.0, space::S);
-            grid::vcenter_at(ui, ui.text_line_height(), 0.0, size::BAR);
+                (y, ui.calc_text_size(app)[0])
+            };
+            let y13 = y16 + ascent(ui, f.mono16b) - ascent(ui, f.mono13);
+            let x = x0 + app_w + space::S;
+            ui.set_cursor_pos([x, y13]);
             ui.text_colored(color::FG3, "/");
-            ui.same_line_with_spacing(0.0, space::S);
+            ui.set_cursor_pos([x + ui.calc_text_size("/")[0] + space::S, y13]);
             ui.text_colored(color::FG2, crumb);
 
             // centre: tabs
@@ -539,21 +570,55 @@ pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], acti
 
             // right: window controls
             let ctrl = 3.0 * size::CONTROL + 2.0 * space::XS;
-            ui.same_line();
-            ui.set_cursor_pos([avail - space::L - ctrl, (size::BAR - size::CONTROL) / 2.0]);
-            if icon_button(ui, ButtonKind::Ghost, "min", "–", false) {
-                action = TitleBarAction::Minimize;
-            }
-            ui.same_line_with_spacing(0.0, space::XS);
-            if icon_button(ui, ButtonKind::Ghost, "max", "□", false) {
-                action = TitleBarAction::Maximize;
-            }
-            ui.same_line_with_spacing(0.0, space::XS);
-            if icon_button(ui, ButtonKind::Ghost, "close", "×", false) {
-                action = TitleBarAction::Close;
+            let cy = (size::BAR - size::CONTROL) / 2.0;
+            let mut x = avail - space::L - ctrl;
+            for which in [TitleBarAction::Minimize, TitleBarAction::Maximize, TitleBarAction::Close] {
+                ui.set_cursor_pos([x, cy]);
+                if window_control(ui, which) {
+                    action = which;
+                }
+                x += size::CONTROL + space::XS;
             }
         });
     action
+}
+
+/// 32 × 32 ghost window control. The – □ × glyphs are drawn with 1 px lines
+/// (10 px icon) instead of font glyphs, so they stay crisp and identical.
+pub fn window_control(ui: &Ui, which: TitleBarAction) -> bool {
+    let id = match which {
+        TitleBarAction::Minimize => "##win_min",
+        TitleBarAction::Maximize => "##win_max",
+        TitleBarAction::Close => "##win_close",
+        TitleBarAction::None => "##win_none",
+    };
+    let s = size::CONTROL;
+    let p = ui.cursor_screen_pos();
+    let clicked = ui.invisible_button(id, [s, s]);
+    let hovered = ui.is_item_hovered();
+    let active = ui.is_item_active();
+    let dl = ui.get_window_draw_list();
+    if hovered || active {
+        let bg = if active { color::BG2 } else { color::BG3 };
+        dl.add_rect(p, [p[0] + s, p[1] + s], bg).rounding(size::RADIUS).filled(true).build();
+    }
+    let fg = if hovered { color::FG } else { color::FG2 };
+    let c = [(p[0] + s / 2.0).round(), (p[1] + s / 2.0).round()];
+    let r = 5.0;
+    match which {
+        TitleBarAction::Minimize => {
+            dl.add_line([c[0] - r, c[1] + 0.5], [c[0] + r, c[1] + 0.5], fg).build();
+        }
+        TitleBarAction::Maximize => {
+            dl.add_rect([c[0] - r + 0.5, c[1] - r + 0.5], [c[0] + r - 0.5, c[1] + r - 0.5], fg).build();
+        }
+        TitleBarAction::Close => {
+            dl.add_line([c[0] - r, c[1] - r], [c[0] + r, c[1] + r], fg).build();
+            dl.add_line([c[0] - r, c[1] + r], [c[0] + r, c[1] - r], fg).build();
+        }
+        TitleBarAction::None => {}
+    }
+    clicked
 }
 
 /// One tab of the title bar: 32 px, bg-3 + bold when active, fg-2 otherwise.
@@ -611,18 +676,24 @@ pub fn status_strip(ui: &Ui, f: &Fonts, items: &[StatItem<'_>], action_widths: &
 /// Toolbar row above a panel: caption on the left, small buttons on the
 /// right (the "STATUS   Copy Save" header of the log).
 pub fn panel_header(ui: &Ui, f: &Fonts, cap: &str, action_widths: &[f32], actions: impl FnOnce(&Ui)) {
-    let y = ui.cursor_pos()[1];
-    grid::vcenter(ui, 16.0, size::CONTROL);
+    let [x, y] = ui.cursor_pos();
+    let cap_h = {
+        let _f = ui.push_font(f.mono10);
+        ui.text_line_height()
+    };
+    ui.set_cursor_pos([x, y + ((size::CONTROL - cap_h) / 2.0).round()]);
     caption(ui, f, cap);
-    ui.same_line();
-    ui.set_cursor_pos([ui.cursor_pos()[0], y + (size::CONTROL - size::SMALL) / 2.0]);
+    // No `same_line`: it would make imgui snap the actions' `same_line`
+    // calls back to the caption's y.
+    ui.set_cursor_pos([x, y + (size::CONTROL - size::SMALL) / 2.0]);
     grid::right_align(ui, action_widths);
     actions(ui);
-    ui.set_cursor_pos([ui.cursor_pos()[0], y + size::CONTROL]);
+    ui.set_cursor_pos([x, y + size::CONTROL]);
 }
 
 /// Bordered panel (bg-0, 1 px line) that scrolls its content; used for the log.
 pub fn panel(ui: &Ui, id: &str, size_: [f32; 2], body: impl FnOnce(&Ui)) {
+    let _bs = ui.push_style_var(StyleVar::ChildBorderSize(size::BORDER));
     let _pad = ui.push_style_var(StyleVar::WindowPadding([size::PAD_X, space::S]));
     let _bg = ui.push_style_color(StyleColor::ChildBg, color::BG0);
     let _bd = ui.push_style_color(StyleColor::Border, color::LINE);
@@ -635,6 +706,7 @@ pub fn panel(ui: &Ui, id: &str, size_: [f32; 2], body: impl FnOnce(&Ui)) {
 
 /// Card: bg-1, 1 px line, 16 px padding, auto height.
 pub fn card(ui: &Ui, id: &str, width: f32, body: impl FnOnce(&Ui)) {
+    let _bs = ui.push_style_var(StyleVar::ChildBorderSize(size::BORDER));
     let _pad = ui.push_style_var(StyleVar::WindowPadding([space::L, space::L]));
     let _bg = ui.push_style_color(StyleColor::ChildBg, color::BG1);
     let _bd = ui.push_style_color(StyleColor::Border, color::LINE);
@@ -648,6 +720,7 @@ pub fn card(ui: &Ui, id: &str, width: f32, body: impl FnOnce(&Ui)) {
 /// Inline banner with a coloured border (artboard 04 · section 14).
 pub fn banner(ui: &Ui, f: &Fonts, kind: TagKind, text: &str, action: Option<&str>) -> bool {
     let (bg, border, fg) = kind.colors();
+    let _bs = ui.push_style_var(StyleVar::ChildBorderSize(size::BORDER));
     let _pad = ui.push_style_var(StyleVar::WindowPadding([size::PAD_X, space::S]));
     let _bg = ui.push_style_color(StyleColor::ChildBg, bg);
     let _bd = ui.push_style_color(StyleColor::Border, border);
