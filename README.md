@@ -41,7 +41,9 @@ w::checkbox(ui, &kit, "Auto-restart", None, &mut auto_restart);
 if w::button(ui, &kit, ButtonKind::Primary, "Launch") { /* … */ }
 ```
 
-Every widget takes `(ui, &kit, …)`. `Kit` owns the font atlas and the
+Every widget takes `(ui, &kit, …)`; the longer ones also come as builders,
+`widgets::Input::new("login").hint("Login").show(ui, &kit, &mut s)` and
+`widgets::Slider::new("Windows", 1.0, 12.0).step(1.0).suffix("/ 12").show(..)`. `Kit` owns the font atlas and the
 animation store, so nothing in the crate is global: two contexts or a test
 never share state.
 
@@ -58,8 +60,8 @@ left  = span(5) = 504 px   right = span(7) = 712 px   at 1280 wide
 ```
 
 `Grid::panes` opens the two child windows, `Grid::row` lays out spans,
-`grid::form_row` the three-column table, `grid::right_align` / `center` /
-`vcenter` / `vcenter_at` place groups, `grid::section_gap` draws the
+`grid::form_row` the three-column table, `grid::Row` places items of mixed
+heights on one line, `grid::right_align` / `center` / `vcenter` place groups, `grid::section_gap` draws the
 24 · separator · 24 rhythm, `grid::push_to_bottom` pins the CTA.
 
 ## Building
@@ -85,8 +87,22 @@ a reference for what an application has to do:
   sleeps in the event loop at 0 % CPU.
 - **Events.** `LaunchScreen::draw` returns every event of the frame as a
   `Vec<LaunchEvent>`; the host matches on them.
-- **Tiles.** Pending map tiles are decoded (a few per frame) and uploaded as GL
-  textures; textures of tiles that left the view are freed.
+- **Tiles.** A worker thread decodes pending map tiles (`tiles.rs`); the main
+  thread uploads a few per frame and frees textures of tiles that left the
+  view. Assets are found next to the executable or in the checkout
+  (`assets.rs`).
+- **Precise pacing.** winit's `WaitUntil` is a 15.6 ms timer on Windows, so
+  the host sleeps itself (after `timeBeginPeriod(1)`) for real 60 fps while
+  something animates.
+- **DPI.** A scale-factor change rebuilds the font atlas and the renderer.
+- **Settings.** Tab, options, map camera and animation settings are saved to
+  `poemulti.settings` next to the executable on exit and restored on start
+  (`settings.rs`, plain `key=value`).
+- **Clipboard.** `arboard` is wired in as imgui's clipboard backend: Ctrl+C /
+  Ctrl+V in text fields and the log's Copy button work; Save writes
+  `poemulti.log` next to the executable.
+- **Hotkeys.** Ctrl+1…8 pick a tab, Ctrl+Tab / Ctrl+Shift+Tab cycle,
+  Ctrl+Enter launches, Ctrl+Backspace stops everything.
 - The OS window is undecorated: the kit's title bar is the drag handle and
   its `– □ ×` controls minimize / maximize / close.
 

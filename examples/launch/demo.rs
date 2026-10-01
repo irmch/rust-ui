@@ -3,11 +3,12 @@
 
 use std::collections::VecDeque;
 
-use imgui::{Condition, StyleVar, Ui, WindowFlags};
+use imgui::{Condition, Key, StyleVar, Ui, WindowFlags};
 
 use imgui_kit::anim;
 use imgui_kit::Kit;
 use crate::gallery::Gallery;
+use crate::settings::Settings;
 use imgui_kit::grid::{self, Grid, Pane};
 use imgui_kit::theme::ButtonKind;
 use imgui_kit::tokens::{color, size, space};
@@ -91,6 +92,7 @@ impl LaunchScreen {
     /// events it produced this frame (usually none).
     pub fn draw(&mut self, ui: &Ui, kit: &Kit, display_size: [f32; 2]) -> Vec<LaunchEvent> {
         let mut events = Vec::new();
+        self.hotkeys(ui, &mut events);
         let _pad = ui.push_style_var(StyleVar::WindowPadding([0.0, 0.0]));
         let _rounding = ui.push_style_var(StyleVar::WindowRounding(0.0));
         let _border = ui.push_style_var(StyleVar::WindowBorderSize(0.0));
@@ -250,6 +252,7 @@ impl LaunchScreen {
         let save_w = w::button_small_width(ui, kit, "Save");
         w::panel_header(ui, kit, "Status", &[copy_w, save_w], |ui| {
             if w::button_small(ui, kit, ButtonKind::Secondary, "Copy") {
+                ui.set_clipboard_text(log_text(&self.log));
                 events.push(LaunchEvent::CopyLog);
             }
             ui.same_line();
@@ -268,6 +271,112 @@ impl LaunchScreen {
             let (t, m) = &log[i];
             w::log_line(ui, kit, *t, m, None);
         });
+    }
+
+    /// Ctrl+1…8 pick a tab, Ctrl+Tab / Ctrl+Shift+Tab cycle them,
+    /// Ctrl+Enter launches, Ctrl+Backspace stops everything.
+    fn hotkeys(&mut self, ui: &Ui, events: &mut Vec<LaunchEvent>) {
+        let io = ui.io();
+        if !io.key_ctrl {
+            return;
+        }
+        const DIGITS: [Key; 8] = [
+            Key::Alpha1,
+            Key::Alpha2,
+            Key::Alpha3,
+            Key::Alpha4,
+            Key::Alpha5,
+            Key::Alpha6,
+            Key::Alpha7,
+            Key::Alpha8,
+        ];
+        for (i, k) in DIGITS.iter().enumerate() {
+            if ui.is_key_pressed_no_repeat(*k) {
+                self.tab = i;
+            }
+        }
+        if ui.is_key_pressed_no_repeat(Key::Tab) {
+            let n = TABS.len();
+            self.tab = if io.key_shift { (self.tab + n - 1) % n } else { (self.tab + 1) % n };
+        }
+        if ui.is_key_pressed_no_repeat(Key::Enter) {
+            events.push(LaunchEvent::Launch);
+        }
+        if ui.is_key_pressed_no_repeat(Key::Backspace) {
+            events.push(LaunchEvent::StopAll);
+        }
+    }
+
+    /// The log as text, one `[t] message` per line.
+    pub fn log_text(&self) -> String {
+        log_text(&self.log)
+    }
+
+    /// Restores what [`LaunchScreen::persist`] saved.
+    pub fn restore(&mut self, kit: &Kit, s: &Settings) {
+        self.tab = s.get_or("tab", self.tab).min(TABS.len() - 1);
+        self.page_tab = self.tab;
+        if let Some(p) = s.get::<String>("game_path") {
+            self.game_path = p;
+        }
+        self.auto_restart = s.get_or("auto_restart", self.auto_restart);
+        self.safe_mode = s.get_or("safe_mode", self.safe_mode);
+        self.real_gpu = s.get_or("real_gpu", self.real_gpu);
+        self.gpu_dialog = s.get_or("gpu_dialog", self.gpu_dialog);
+        self.underflow_fix = s.get_or("underflow_fix", self.underflow_fix);
+        self.spoof_hash = s.get_or("spoof_hash", self.spoof_hash);
+        self.windows = s.get_or("windows", self.windows).clamp(1.0, 12.0);
+        self.stagger_ms = s.get_or("stagger_ms", self.stagger_ms).clamp(0.0, 2000.0);
+        let map = &mut self.gallery.map;
+        map.view.zoom = s.get_or("map.zoom", map.view.zoom).clamp(map.view.min_zoom, map.view.max_zoom);
+        map.view.follow = s.get_or("map.follow", map.view.follow);
+        if let (Some(x), Some(y)) = (s.get("map.center_x"), s.get("map.center_y")) {
+            map.view.center = [x, y];
+        }
+        map.view.show_tile_grid = s.get_or("map.regions", map.view.show_tile_grid);
+        map.show_geo = s.get_or("map.geo", map.show_geo);
+        map.show_walls = s.get_or("map.walls", map.show_walls);
+        map.show_blocks = s.get_or("map.blocks", map.show_blocks);
+        map.show_npcs = s.get_or("map.npcs", map.show_npcs);
+        map.walking = s.get_or("map.walk", map.walking);
+        let mut a = kit.anim.settings();
+        a.controls = s.get_or("anim.controls", a.controls);
+        a.tabs = s.get_or("anim.tabs", a.tabs);
+        a.pages = s.get_or("anim.pages", a.pages);
+        a.scale = s.get_or("anim.scale", a.scale).clamp(0.25, 4.0);
+        kit.anim.set(a);
+    }
+
+    /// Everything worth keeping between runs.
+    pub fn persist(&self, kit: &Kit) -> Settings {
+        let mut s = Settings::default();
+        s.set("tab", self.tab);
+        s.set("game_path", &self.game_path);
+        s.set("auto_restart", self.auto_restart);
+        s.set("safe_mode", self.safe_mode);
+        s.set("real_gpu", self.real_gpu);
+        s.set("gpu_dialog", self.gpu_dialog);
+        s.set("underflow_fix", self.underflow_fix);
+        s.set("spoof_hash", self.spoof_hash);
+        s.set("windows", self.windows);
+        s.set("stagger_ms", self.stagger_ms);
+        let map = &self.gallery.map;
+        s.set("map.zoom", map.view.zoom);
+        s.set("map.follow", map.view.follow);
+        s.set("map.center_x", map.view.center[0]);
+        s.set("map.center_y", map.view.center[1]);
+        s.set("map.regions", map.view.show_tile_grid);
+        s.set("map.geo", map.show_geo);
+        s.set("map.walls", map.show_walls);
+        s.set("map.blocks", map.show_blocks);
+        s.set("map.npcs", map.show_npcs);
+        s.set("map.walk", map.walking);
+        let a = kit.anim.settings();
+        s.set("anim.controls", a.controls);
+        s.set("anim.tabs", a.tabs);
+        s.set("anim.pages", a.pages);
+        s.set("anim.scale", a.scale);
+        s
     }
 
     /// Whether the screen changes without input right now: a page
@@ -306,8 +415,23 @@ impl LaunchScreen {
                 self.status = "Ready";
             }
             LaunchEvent::CopyLog => self.log("Log copied to clipboard"),
-            LaunchEvent::SaveLog => self.log("Log saved"),
+            LaunchEvent::SaveLog => {
+                let path = crate::assets::data_dir().join("poemulti.log");
+                match std::fs::write(&path, self.log_text()) {
+                    Ok(()) => self.log(format!("Log saved to {}", path.display())),
+                    Err(e) => self.log(format!("Log not saved: {e}")),
+                }
+            }
             _ => {}
         }
     }
+}
+
+/// [`LaunchScreen::log_text`] on a bare log, usable while `self` is borrowed.
+fn log_text(log: &VecDeque<(f32, String)>) -> String {
+    let mut s = String::new();
+    for (t, m) in log {
+        s.push_str(&format!("[{t:.3}] {m}\n"));
+    }
+    s
 }

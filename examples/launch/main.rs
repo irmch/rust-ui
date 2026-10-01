@@ -9,9 +9,13 @@
 //! the window, the ─ □ × buttons minimize / maximize / close it.
 //!
 //! Frames are rendered on demand, not in a loop: after input, while an
-//! animation runs (`anim::animating`, `LaunchScreen::is_animating`) and at a
-//! reduced rate when the window is not focused. Idle the process sleeps in
+//! animation runs (`kit.anim.animating`, `LaunchScreen::is_animating`) and at
+//! a reduced rate when the window is not focused. Idle the process sleeps in
 //! the event loop and uses no CPU; minimized it renders nothing.
+//!
+//! Map tiles are decoded on a worker thread (`tiles`), assets are found next
+//! to the executable or in the checkout (`assets`), settings survive restarts
+//! (`settings`), and a DPI change rebuilds the font atlas and the renderer.
 
 use std::{
     num::NonZeroU32,
@@ -25,20 +29,24 @@ use glutin::{
     display::{GetGlDisplay, GlDisplay},
     surface::{GlSurface, Surface, SurfaceAttributesBuilder, SwapInterval, WindowSurface},
 };
+mod assets;
 mod demo;
 mod gallery;
 mod map_demo;
+mod settings;
+mod tiles;
 
 use demo::{LaunchEvent, LaunchScreen};
-use imgui::{MouseButton, TextureId};
+use imgui::MouseButton;
 use imgui_kit::{
     fonts::{self, FontFiles},
-    Kit,
-    map::TileGrid,
     theme,
     tokens::{color, size},
     widgets::TitleBarAction,
+    Kit,
 };
+use settings::Settings;
+use tiles::TileLoader;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use raw_window_handle::HasRawWindowHandle;
 use winit::{
@@ -59,13 +67,39 @@ const BACKGROUND_PERIOD: Duration = Duration::from_millis(1000 / 15);
 /// Keep rendering this long after the last input so imgui settles
 /// (hover, release, trickled key events, animations that start on the click).
 const INPUT_GRACE: Duration = Duration::from_millis(500);
+/// Finished tiles uploaded per frame (each is a 256 × 256 RGBA texture).
+const UPLOADS_PER_FRAME: usize = 8;
+/// Frames a tile may stay out of view before its texture is freed.
+const TILE_MAX_AGE: i32 = 600;
+
+/// The TTFs, embedded; also used to rebuild the atlas on a DPI change.
+fn font_files() -> FontFiles<'static> {
+    FontFiles {
+        regular: include_bytes!("../../assets/JetBrainsMono-Regular.ttf"),
+        bold: include_bytes!("../../assets/JetBrainsMono-Bold.ttf"),
+        semibold: Some(include_bytes!("../../assets/JetBrainsMono-SemiBold.ttf")),
+    }
+}
 
 fn main() {
+    // Windows wakes WaitUntil timers every 15.6 ms by default; 1 ms gives the
+    // on-demand loop real 60 fps while something animates.
+    #[cfg(windows)]
+    unsafe {
+        windows_sys::Win32::Media::timeBeginPeriod(1);
+    }
+
     let (event_loop, window, surface, context) = create_window();
 
     // imgui context + kit theme + kit fonts ---------------------------------
     let mut imgui = imgui::Context::create();
     imgui.set_ini_filename(None);
+    // imgui-sys ships without the Win32 default clipboard handlers, so
+    // Ctrl+C / Ctrl+V in text fields and set_clipboard_text need a backend.
+    match arboard::Clipboard::new() {
+        Ok(c) => imgui.set_clipboard_backend(Clipboard(c)),
+        Err(e) => eprintln!("clipboard unavailable: {e}"),
+    }
     theme::apply_to(&mut imgui);
     // An app decision, not the kit's: the launcher never shrinks below this.
     imgui.style_mut().window_min_size = [960.0, 640.0];
@@ -74,23 +108,18 @@ fn main() {
     platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Default);
     let scale = platform.hidpi_factor() as f32;
 
-    let fonts = fonts::load(
-        &mut imgui,
-        FontFiles {
-            regular: include_bytes!("../../assets/JetBrainsMono-Regular.ttf"),
-            bold: include_bytes!("../../assets/JetBrainsMono-Bold.ttf"),
-            semibold: Some(include_bytes!("../../assets/JetBrainsMono-SemiBold.ttf")),
-        },
-        scale,
-    );
+    let fonts = fonts::load(&mut imgui, font_files(), scale);
     imgui.io_mut().font_global_scale = 1.0 / scale;
-    let kit = Kit::new(fonts);
+    let mut kit = Kit::new(fonts);
 
     let gl = glow_context(&context);
     let mut renderer = imgui_glow_renderer::AutoRenderer::initialize(gl, &mut imgui)
         .expect("failed to create renderer");
 
     let mut screen = LaunchScreen::default();
+    screen.restore(&kit, &Settings::load());
+    let loader = TileLoader::start(assets::asset_dir());
+    let mut pending_scale: Option<f32> = None;
     let mut last_frame = Instant::now();
     // render-on-demand state
     let mut last_input = Instant::now();
@@ -121,14 +150,19 @@ fn main() {
                 };
                 match period {
                     Some(p) => {
-                        if now >= next_frame {
-                            next_frame = now + p;
-                            window.request_redraw();
-                            if let Some(s) = stats.as_mut() {
-                                s.requests += 1;
-                            }
+                        // winit implements WaitUntil with a USER timer that
+                        // fires every 15.6 ms on Windows (≈ 36 fps). Sleep
+                        // ourselves instead (1 ms accurate after
+                        // timeBeginPeriod) and keep the loop polling.
+                        if now < next_frame {
+                            std::thread::sleep(next_frame - now);
                         }
-                        target.set_control_flow(ControlFlow::WaitUntil(next_frame));
+                        next_frame = Instant::now() + p;
+                        window.request_redraw();
+                        if let Some(s) = stats.as_mut() {
+                            s.requests += 1;
+                        }
+                        target.set_control_flow(ControlFlow::Poll);
                     }
                     // Nothing moves: sleep until the OS sends an event.
                     None => target.set_control_flow(ControlFlow::Wait),
@@ -146,6 +180,15 @@ fn main() {
                 }
                 imgui.io_mut().update_delta_time(dt);
                 last_frame = now;
+                // DPI changed: new atlas at the new scale, and a new renderer
+                // (the glow one bakes the font texture at creation).
+                if let Some(s) = pending_scale.take() {
+                    imgui.fonts().clear();
+                    kit.fonts = fonts::load(&mut imgui, font_files(), s);
+                    imgui.io_mut().font_global_scale = 1.0 / s;
+                    renderer = imgui_glow_renderer::AutoRenderer::initialize(glow_context(&context), &mut imgui)
+                        .expect("failed to recreate renderer");
+                }
                 platform.prepare_frame(imgui.io_mut(), &window).unwrap();
                 unsafe {
                     let gl = renderer.gl_context();
@@ -163,19 +206,16 @@ fn main() {
                 // caret has to blink.
                 animating = kit.anim.animating(ui) || screen.is_animating() || ui.io().want_text_input;
 
-                // Map tiles the view asked for this frame: decode + upload a
-                // few, then make sure a frame shows them / loads the rest.
-                // Textures that left the view a while ago are freed.
+                // Map tiles: hand new requests to the worker, upload what it
+                // finished, free textures that left the view a while ago, and
+                // keep frames coming while anything is still in flight.
                 let gl = renderer.gl_context();
                 let map = &mut screen.gallery.map;
-                let loaded = load_pending_tiles(gl, &mut map.tiles, &region_pixels)
-                    + load_pending_tiles(gl, &mut map.geo, &|t| (256, 256, map_demo::geo_pixels(t)));
-                for grid in [&mut map.tiles, &mut map.geo] {
-                    for (_, tex) in grid.evict_unseen(TILE_MAX_AGE) {
-                        free_texture(gl, tex);
-                    }
-                }
-                if loaded > 0 || map.tiles.pending_count() + map.geo.pending_count() > 0 {
+                loader.request_pending(map);
+                let uploaded = loader.upload_done(gl, map, UPLOADS_PER_FRAME);
+                tiles::evict(gl, [&mut map.tiles, &mut map.geo], TILE_MAX_AGE);
+                let in_flight = map.tiles.counts().1 + map.geo.counts().1;
+                if uploaded > 0 || in_flight > 0 {
                     animating = true;
                 }
 
@@ -231,6 +271,16 @@ fn main() {
                 last_input = Instant::now();
                 platform.handle_event(imgui.io_mut(), &window, &event);
             }
+            Event::WindowEvent { event: WindowEvent::ScaleFactorChanged { scale_factor, .. }, .. } => {
+                pending_scale = Some(scale_factor as f32);
+                last_input = Instant::now();
+                platform.handle_event(imgui.io_mut(), &window, &event);
+            }
+            Event::LoopExiting => {
+                if let Err(e) = screen.persist(&kit).save() {
+                    eprintln!("settings not saved: {e}");
+                }
+            }
             Event::WindowEvent { .. } => {
                 // Any other window event (mouse, keyboard, scale change, …)
                 // is input: render for a short while after it.
@@ -240,6 +290,21 @@ fn main() {
             event => platform.handle_event(imgui.io_mut(), &window, &event),
         })
         .expect("event loop error");
+}
+
+/// System clipboard for imgui (text fields, `set_clipboard_text`).
+struct Clipboard(arboard::Clipboard);
+
+impl imgui::ClipboardBackend for Clipboard {
+    fn get(&mut self) -> Option<String> {
+        self.0.get_text().ok()
+    }
+
+    fn set(&mut self, value: &str) {
+        if let Err(e) = self.0.set_text(value.to_owned()) {
+            eprintln!("clipboard: {e}");
+        }
+    }
 }
 
 /// Per-second report of the UI build time (widgets + draw lists, no GL,
@@ -323,71 +388,6 @@ fn create_window() -> (EventLoop<()>, Window, Surface<WindowSurface>, PossiblyCu
     let _ = surface.set_swap_interval(&context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()));
 
     (event_loop, window, surface, context)
-}
-
-/// Tiles decoded per frame per layer: the demo decodes on the main thread,
-/// so bound the stall (one synthetic tile is ~130k terrain samples).
-const TILES_PER_FRAME: usize = 3;
-/// Frames a tile may stay out of view before its texture is freed.
-const TILE_MAX_AGE: i32 = 600;
-
-/// Pixels of a map region: `assets/map/{x}_{y}.png` (or `.jpg`) when present,
-/// otherwise the synthetic terrain of the demo.
-fn region_pixels(tile: [i32; 2]) -> (i32, i32, Vec<u8>) {
-    let from_file = ["png", "jpg"].iter().find_map(|ext| {
-        let path = format!("assets/map/{}_{}.{ext}", tile[0], tile[1]);
-        image::open(&path).ok().map(|img| img.to_rgba8())
-    });
-    match from_file {
-        Some(img) => (img.width() as i32, img.height() as i32, img.into_raw()),
-        None => (256, 256, map_demo::tile_pixels(tile)),
-    }
-}
-
-/// Loads up to [`TILES_PER_FRAME`] tiles the view marked pending in `tiles`,
-/// rendering each with `pixels` → `(width, height, rgba)`, and returns how
-/// many it uploaded.
-fn load_pending_tiles(gl: &glow::Context, tiles: &mut TileGrid, pixels: &dyn Fn([i32; 2]) -> (i32, i32, Vec<u8>)) -> usize {
-    let pending = tiles.take_pending_limit(TILES_PER_FRAME);
-    let n = pending.len();
-    for tile in pending {
-        let (w, h, rgba) = pixels(tile);
-        tiles.set(tile, upload_rgba(gl, w, h, &rgba));
-    }
-    n
-}
-
-/// Frees a texture created by [`upload_rgba`].
-fn free_texture(gl: &glow::Context, tex: TextureId) {
-    if let Some(id) = NonZeroU32::new(tex.id() as u32) {
-        unsafe { gl.delete_texture(glow::NativeTexture(id)) };
-    }
-}
-
-/// Creates a GL texture; imgui-glow-renderer's SimpleTextureMap uses the GL
-/// name itself as the imgui texture id.
-fn upload_rgba(gl: &glow::Context, w: i32, h: i32, pixels: &[u8]) -> TextureId {
-    unsafe {
-        let tex = gl.create_texture().expect("create texture");
-        gl.bind_texture(glow::TEXTURE_2D, Some(tex));
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
-        gl.tex_image_2d(
-            glow::TEXTURE_2D,
-            0,
-            glow::RGBA as i32,
-            w,
-            h,
-            0,
-            glow::RGBA,
-            glow::UNSIGNED_BYTE,
-            Some(pixels),
-        );
-        gl.bind_texture(glow::TEXTURE_2D, None);
-        TextureId::new(tex.0.get() as usize)
-    }
 }
 
 fn glow_context(context: &PossiblyCurrentContext) -> glow::Context {
