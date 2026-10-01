@@ -4,6 +4,7 @@
 use imgui::{Condition, StyleVar, Ui, WindowFlags};
 
 use crate::fonts::Fonts;
+use crate::gallery::Gallery;
 use crate::grid::{self, Grid, Pane};
 use crate::theme::ButtonKind;
 use crate::tokens::{color, size, space};
@@ -24,6 +25,8 @@ pub struct LaunchScreen {
     pub stagger_ms: f32,
     pub log: Vec<(f32, String)>,
     pub status: &'static str,
+    /// State of the widget gallery on the other tabs.
+    pub gallery: Gallery,
 }
 
 impl Default for LaunchScreen {
@@ -48,6 +51,7 @@ impl Default for LaunchScreen {
                 (0.336, "Ready to launch".into()),
             ],
             status: "Ready",
+            gallery: Gallery::default(),
         }
     }
 }
@@ -127,24 +131,34 @@ impl LaunchScreen {
             }
         });
 
-        // 3. content: 5 / 7 panes on the 12-column grid ---------------------
-        let grid = Grid::default();
+        // 3. content ---------------------------------------------------------
         let _pad = ui.push_style_var(StyleVar::WindowPadding([space::XL, space::XL]));
-        ui.child_window("##content")
-            .size([0.0, 0.0])
-            .flags(WindowFlags::ALWAYS_USE_WINDOW_PADDING | WindowFlags::NO_SCROLLBAR)
-            .build(|| {
-                let span = Grid::form_span(width);
-                grid.panes(ui, span, |ui, pane| {
-                    let e = match pane {
-                        Pane::Left => self.form_pane(ui, f),
-                        Pane::Right => self.log_pane(ui, f),
-                    };
-                    if let Some(e) = e {
-                        ev = e;
-                    }
+        if self.tab == 0 {
+            // Launch: 5 / 7 panes on the 12-column grid
+            let grid = Grid::default();
+            ui.child_window("##content")
+                .size([0.0, 0.0])
+                .flags(WindowFlags::ALWAYS_USE_WINDOW_PADDING | WindowFlags::NO_SCROLLBAR)
+                .build(|| {
+                    let span = Grid::form_span(width);
+                    grid.panes(ui, span, |ui, pane| {
+                        let e = match pane {
+                            Pane::Left => self.form_pane(ui, f),
+                            Pane::Right => self.log_pane(ui, f),
+                        };
+                        if let Some(e) = e {
+                            ev = e;
+                        }
+                    });
                 });
-            });
+        } else {
+            // Other tabs: the scrolling widget gallery
+            let tab = self.tab;
+            ui.child_window("##gallery")
+                .size([0.0, 0.0])
+                .flags(WindowFlags::ALWAYS_USE_WINDOW_PADDING)
+                .build(|| self.gallery.draw(ui, f, tab));
+        }
         ev
     }
 

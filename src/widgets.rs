@@ -704,16 +704,18 @@ pub fn panel(ui: &Ui, id: &str, size_: [f32; 2], body: impl FnOnce(&Ui)) {
         .build(|| body(ui));
 }
 
-/// Card: bg-1, 1 px line, 16 px padding, auto height.
-pub fn card(ui: &Ui, id: &str, width: f32, body: impl FnOnce(&Ui)) {
+/// Card: bg-1, 1 px line, 16 px padding. `size` as in [`panel`]: `0.0`
+/// fills the remaining width / height (imgui child windows cannot size
+/// themselves to their content, so give cards in a row an explicit height).
+pub fn card(ui: &Ui, id: &str, size_: [f32; 2], body: impl FnOnce(&Ui)) {
     let _bs = ui.push_style_var(StyleVar::ChildBorderSize(size::BORDER));
     let _pad = ui.push_style_var(StyleVar::WindowPadding([space::L, space::L]));
     let _bg = ui.push_style_color(StyleColor::ChildBg, color::BG1);
     let _bd = ui.push_style_color(StyleColor::Border, color::LINE);
     ui.child_window(id)
-        .size([width, 0.0])
+        .size(size_)
         .border(true)
-        .flags(WindowFlags::ALWAYS_USE_WINDOW_PADDING | WindowFlags::ALWAYS_AUTO_RESIZE)
+        .flags(WindowFlags::ALWAYS_USE_WINDOW_PADDING | WindowFlags::NO_SCROLLBAR)
         .build(|| body(ui));
 }
 

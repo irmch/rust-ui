@@ -14,6 +14,7 @@ The design source is the canvas **ImGui Rust UI Kit**
 | 04 Navigation & overlays | `widgets` | title bar with centred tabs, status strip, tags, banner, panels, cards |
 | 05 Data & feedback | `widgets` | log line, stat, status dot |
 | 06 Reference screen | `demo::LaunchScreen` | the Launch screen built from the above |
+| all of the above | `gallery::Gallery` | every widget in every state on the Accounts … Settings tabs of the demo |
 
 ## Usage
 
@@ -73,3 +74,8 @@ cargo run --example launch
 The OS window is undecorated; the kit's own title bar is the drag handle and
 its `– □ ×` buttons minimize / maximize / close the window. Screen events
 (`Launch`, `StopAll`, `Browse`, …) are printed to stdout.
+
+The other tabs (Accounts, Instances, Proxies, Resources, Tools, Settings) show
+the widget gallery: cards, tags, status dots, a table, progress bars, inputs,
+radios, switches, checkboxes, the disabled state, stats, sliders, every button
+variant, banners, grid and form rows, text styles, panel header and panel.

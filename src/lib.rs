@@ -29,9 +29,11 @@
 //! - [`grid`]: the 12-column grid, pane split, form rows, alignment helpers (artboard 02).
 //! - [`widgets`]: checkboxes, switches, sliders, tags, bars, panels (artboards 03–05).
 //! - [`demo`]: the reference Launch screen (artboard 06).
+//! - [`gallery`]: every widget in every state, shown on the other tabs of the demo.
 
 pub mod demo;
 pub mod fonts;
+pub mod gallery;
 pub mod grid;
 pub mod theme;
 pub mod tokens;
