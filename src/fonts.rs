@@ -59,6 +59,14 @@ const GLYPH_RANGES: &[u32] = &[
 /// Loads the atlas. `scale` is the HiDPI factor (1.0 on a 96 dpi screen);
 /// pair it with `io.font_global_scale = 1.0 / scale` or render at that scale.
 pub fn load(ctx: &mut Context, files: FontFiles<'_>, scale: f32) -> Fonts {
+    load_sized(ctx, files, scale, 1.0)
+}
+
+/// [`load`] with every size multiplied by `size_mul`: an app that wants a
+/// 14 px body instead of 13 passes `14.0 / 13.0`. Control heights stay
+/// the kit's, so keep it near 1.
+pub fn load_sized(ctx: &mut Context, files: FontFiles<'_>, scale: f32, size_mul: f32) -> Fonts {
+    let scale = scale * size_mul;
     let semibold = files.semibold.unwrap_or(files.bold);
     let icons = files.icons.as_ref();
     let add = |ctx: &mut Context, data: &[u8], px: f32, extra_x: f32, with_icons: bool| -> FontId {
