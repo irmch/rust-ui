@@ -165,8 +165,17 @@ fn main() {
 
                 // Map tiles the view asked for this frame: decode + upload a
                 // few, then make sure a frame shows them / loads the rest.
-                let loaded = load_pending_tiles(renderer.gl_context(), &mut screen.gallery.map.tiles);
-                if loaded > 0 || screen.gallery.map.tiles.pending_count() > 0 {
+                // Textures that left the view a while ago are freed.
+                let gl = renderer.gl_context();
+                let map = &mut screen.gallery.map;
+                let loaded = load_pending_tiles(gl, &mut map.tiles, &region_pixels)
+                    + load_pending_tiles(gl, &mut map.geo, &|t| (256, 256, map_demo::geo_pixels(t)));
+                for grid in [&mut map.tiles, &mut map.geo] {
+                    for (_, tex) in grid.evict_unseen(TILE_MAX_AGE) {
+                        free_texture(gl, tex);
+                    }
+                }
+                if loaded > 0 || map.tiles.pending_count() + map.geo.pending_count() > 0 {
                     animating = true;
                 }
 
@@ -316,29 +325,43 @@ fn create_window() -> (EventLoop<()>, Window, Surface<WindowSurface>, PossiblyCu
     (event_loop, window, surface, context)
 }
 
-/// Tiles decoded per frame: the demo decodes on the main thread, so bound
-/// the stall (one synthetic tile is ~130k terrain samples).
-const TILES_PER_FRAME: usize = 4;
+/// Tiles decoded per frame per layer: the demo decodes on the main thread,
+/// so bound the stall (one synthetic tile is ~130k terrain samples).
+const TILES_PER_FRAME: usize = 3;
+/// Frames a tile may stay out of view before its texture is freed.
+const TILE_MAX_AGE: i32 = 600;
 
-/// Loads up to [`TILES_PER_FRAME`] tiles the map view marked pending and
-/// returns how many. A region image is read from `assets/map/{x}_{y}.png`
-/// (or `.jpg`) when present, otherwise the synthetic terrain of the demo is
-/// rendered into a 256 × 256 texture.
-fn load_pending_tiles(gl: &glow::Context, tiles: &mut TileGrid) -> usize {
+/// Pixels of a map region: `assets/map/{x}_{y}.png` (or `.jpg`) when present,
+/// otherwise the synthetic terrain of the demo.
+fn region_pixels(tile: [i32; 2]) -> (i32, i32, Vec<u8>) {
+    let from_file = ["png", "jpg"].iter().find_map(|ext| {
+        let path = format!("assets/map/{}_{}.{ext}", tile[0], tile[1]);
+        image::open(&path).ok().map(|img| img.to_rgba8())
+    });
+    match from_file {
+        Some(img) => (img.width() as i32, img.height() as i32, img.into_raw()),
+        None => (256, 256, map_demo::tile_pixels(tile)),
+    }
+}
+
+/// Loads up to [`TILES_PER_FRAME`] tiles the view marked pending in `tiles`,
+/// rendering each with `pixels` → `(width, height, rgba)`, and returns how
+/// many it uploaded.
+fn load_pending_tiles(gl: &glow::Context, tiles: &mut TileGrid, pixels: &dyn Fn([i32; 2]) -> (i32, i32, Vec<u8>)) -> usize {
     let pending = tiles.take_pending_limit(TILES_PER_FRAME);
     let n = pending.len();
     for tile in pending {
-        let from_file = ["png", "jpg"].iter().find_map(|ext| {
-            let path = format!("assets/map/{}_{}.{ext}", tile[0], tile[1]);
-            image::open(&path).ok().map(|img| img.to_rgba8())
-        });
-        let (w, h, pixels) = match from_file {
-            Some(img) => (img.width() as i32, img.height() as i32, img.into_raw()),
-            None => (256, 256, map_demo::tile_pixels(tile)),
-        };
-        tiles.set(tile, upload_rgba(gl, w, h, &pixels));
+        let (w, h, rgba) = pixels(tile);
+        tiles.set(tile, upload_rgba(gl, w, h, &rgba));
     }
     n
+}
+
+/// Frees a texture created by [`upload_rgba`].
+fn free_texture(gl: &glow::Context, tex: TextureId) {
+    if let Some(id) = NonZeroU32::new(tex.id() as u32) {
+        unsafe { gl.delete_texture(glow::NativeTexture(id)) };
+    }
 }
 
 /// Creates a GL texture; imgui-glow-renderer's SimpleTextureMap uses the GL

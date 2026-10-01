@@ -9,12 +9,10 @@
 use imgui::{StyleVar, Ui};
 
 use imgui_kit::Kit;
-use imgui_kit::map::{self, MapView, TileGrid};
+use imgui_kit::map::{self, Layer, MapView, TileGrid};
 use imgui_kit::theme::ButtonKind;
 use imgui_kit::tokens::{color, space, Rgba};
 
-/// Fill of blocked cells (buildings): error red at 45 %.
-const WALL_FILL: Rgba = [0.91, 0.38, 0.36, 0.45];
 use imgui_kit::widgets as w;
 
 /// Lineage 2 world layout constants.
@@ -25,6 +23,8 @@ pub mod l2 {
     pub const CELL: f32 = 16.0;
     /// Size of one geodata block (8 × 8 cells).
     pub const BLOCK: f32 = 8.0 * CELL;
+    /// Size of one geodata raster tile: 256 × 256 cells, one pixel per cell.
+    pub const GEO_TILE: f32 = 256.0 * CELL;
     /// World position of the corner of region `0_0`: region `20_18` starts at `(0, 0)`.
     pub const ORIGIN: [f32; 2] = [-20.0 * REGION, -18.0 * REGION];
     /// Regions that exist on the map.
@@ -127,6 +127,31 @@ pub fn height_color(h: f32) -> [u8; 3] {
     ]
 }
 
+/// Pixels of a 256 × 256 RGBA geodata raster for geo tile `tile`
+/// ([`l2::GEO_TILE`] units, one pixel per cell): height-tinted cells, blocked
+/// cells in red, transparent elsewhere. Drawn as a second tile layer over the
+/// map, so geodata costs a few quads per frame instead of one rect per cell.
+pub fn geo_pixels(tile: [i32; 2]) -> Vec<u8> {
+    const N_PX: usize = 256;
+    let a = [l2::ORIGIN[0] + tile[0] as f32 * l2::GEO_TILE, l2::ORIGIN[1] + tile[1] as f32 * l2::GEO_TILE];
+    let mut px = Vec::with_capacity(N_PX * N_PX * 4);
+    for py in 0..N_PX {
+        for pxl in 0..N_PX {
+            let wx = a[0] + (pxl as f32 + 0.5) * l2::CELL;
+            let wy = a[1] + (py as f32 + 0.5) * l2::CELL;
+            let bx = (wx / l2::BLOCK).floor() as i32;
+            let by = (wy / l2::BLOCK).floor() as i32;
+            if is_building(bx, by) {
+                px.extend_from_slice(&[232, 97, 92, 115]);
+            } else {
+                let c = height_color(terrain_height(wx, wy));
+                px.extend_from_slice(&[c[0], c[1], c[2], 140]);
+            }
+        }
+    }
+    px
+}
+
 /// Pixels of a synthetic 256 × 256 RGBA map image for region `tile`: one
 /// pixel per block, shaded by height, with buildings and block borders.
 pub fn tile_pixels(tile: [i32; 2]) -> Vec<u8> {
@@ -174,6 +199,8 @@ pub struct Npc {
 pub struct MapPage {
     pub view: MapView,
     pub tiles: TileGrid,
+    /// Geodata raster layer, [`l2::GEO_TILE`] units per tile.
+    pub geo: TileGrid,
     pub player: [f32; 2],
     pub heading: f32,
     pub walking: bool,
@@ -217,6 +244,10 @@ impl Default for MapPage {
                 ..MapView::default()
             },
             tiles: TileGrid::new(l2::ORIGIN, [l2::REGION, l2::REGION]).with_bounds(l2::REGION_MIN, l2::REGION_MAX),
+            geo: TileGrid::new(l2::ORIGIN, [l2::GEO_TILE, l2::GEO_TILE]).with_bounds(
+                [l2::REGION_MIN[0] * 8, l2::REGION_MIN[1] * 8],
+                [l2::REGION_MAX[0] * 8 + 7, l2::REGION_MAX[1] * 8 + 7],
+            ),
             player: PLAYER_START,
             heading: 0.0,
             walking: true,
@@ -323,6 +354,7 @@ impl MapPage {
         {
             let r = l2::region_of(self.player);
             let (ready, loading, _) = self.tiles.counts();
+            let (geo_ready, geo_loading, _) = self.geo.counts();
             let cell = [(self.player[0] / l2::CELL).floor() as i32, (self.player[1] / l2::CELL).floor() as i32];
             let g = geo_cell(cell[0], cell[1]);
             let items = [
@@ -331,7 +363,7 @@ impl MapPage {
                 ("Cell", format!("{}, {}", cell[0], cell[1]), String::new()),
                 ("Height", format!("{:.0}", g.height), String::new()),
                 ("Zoom", map::zoom_label(self.view.zoom), String::new()),
-                ("Tiles", format!("{ready}"), format!("ready, {loading} loading")),
+                ("Tiles", format!("{ready}+{geo_ready}"), format!("ready, {} loading", loading + geo_loading)),
                 ("NPCs in sight", format!("{}", self.in_sight()), String::new()),
             ];
             for (i, (cap, val, unit)) in items.iter().enumerate() {
@@ -353,49 +385,39 @@ impl MapPage {
         let selected = self.selected;
         let waypoint = self.waypoint;
         let trail = &self.trail;
-        let resp = self.view.show(ui, "##l2map", [0.0, 0.0], &mut self.tiles, Some(player), |c| {
-            // 1 + 2. geodata and walls: one geo_cell per visible cell for
-            // both when cells are readable, one height sample per block when
-            // far (no neighbour lookups, nothing is drawn per cell then).
+        // Layers: the map image, then the geodata raster (cells pre-rendered
+        // into textures, see geo_pixels). Only the walls stay vector: they
+        // need to be 1 px at any zoom.
+        let mut layers = [Layer::new(&mut self.tiles), Layer::new(&mut self.geo).visible(show_geo)];
+        let resp = self.view.show_layers(ui, "##l2map", [0.0, 0.0], &mut layers, Some(player), |c| {
+            // 1. walls: the blocked sides of each visible cell, once cells are readable
             let cell_px = c.px(l2::CELL);
-            if cell_px >= 6.0 && (show_geo || show_walls) {
-                let walls = show_walls && cell_px >= 8.0;
+            if show_walls && cell_px >= 8.0 {
                 let (min, max) = c.world_rect();
                 let (x0, x1) = ((min[0] / l2::CELL).floor() as i32, (max[0] / l2::CELL).floor() as i32);
                 let (y0, y1) = ((min[1] / l2::CELL).floor() as i32, (max[1] / l2::CELL).floor() as i32);
                 for cy in y0..=y1 {
                     for cx in x0..=x1 {
                         let g = geo_cell(cx, cy);
+                        if g.nswe == 0b1111 {
+                            continue;
+                        }
                         let a = [cx as f32 * l2::CELL, cy as f32 * l2::CELL];
                         let b = [a[0] + l2::CELL, a[1] + l2::CELL];
-                        if show_geo {
-                            c.rect_filled(a, b, if g.nswe == 0 { WALL_FILL } else { tint(height_color(g.height), 0.55) });
+                        if g.nswe & N == 0 {
+                            c.line(a, [b[0], a[1]], color::WARN, 1.0);
                         }
-                        if walls && g.nswe != 0b1111 {
-                            if g.nswe & N == 0 {
-                                c.line(a, [b[0], a[1]], color::WARN, 1.0);
-                            }
-                            if g.nswe & S == 0 {
-                                c.line([a[0], b[1]], b, color::WARN, 1.0);
-                            }
-                            if g.nswe & W == 0 {
-                                c.line(a, [a[0], b[1]], color::WARN, 1.0);
-                            }
-                            if g.nswe & E == 0 {
-                                c.line([b[0], a[1]], b, color::WARN, 1.0);
-                            }
+                        if g.nswe & S == 0 {
+                            c.line([a[0], b[1]], b, color::WARN, 1.0);
+                        }
+                        if g.nswe & W == 0 {
+                            c.line(a, [a[0], b[1]], color::WARN, 1.0);
+                        }
+                        if g.nswe & E == 0 {
+                            c.line([b[0], a[1]], b, color::WARN, 1.0);
                         }
                     }
                 }
-            } else if show_geo {
-                c.cells([0.0, 0.0], l2::BLOCK, 3.0, |bx, by| {
-                    if is_building(bx, by) {
-                        Some(WALL_FILL)
-                    } else {
-                        let h = terrain_height(bx as f32 * l2::BLOCK + 64.0, by as f32 * l2::BLOCK + 64.0);
-                        Some(tint(height_color(h), 0.35))
-                    }
-                });
             }
             // 3. block grid
             if show_blocks {
@@ -459,10 +481,6 @@ impl MapPage {
 
 fn dist(a: [f32; 2], b: [f32; 2]) -> f32 {
     ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt()
-}
-
-fn tint(c: [u8; 3], alpha: f32) -> Rgba {
-    [c[0] as f32 / 255.0, c[1] as f32 / 255.0, c[2] as f32 / 255.0, alpha]
 }
 
 fn dim(c: Rgba) -> Rgba {

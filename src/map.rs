@@ -60,6 +60,9 @@ pub trait TileSource {
     fn origin(&self) -> [f32; 2];
     /// Size of one tile in world units.
     fn tile_size(&self) -> [f32; 2];
+    /// Called once per frame before the visible tiles are queried, with the
+    /// imgui frame counter; sources use it to age tiles for eviction.
+    fn begin_frame(&mut self, _frame: i32) {}
     /// State of a tile. Called once per visible tile per frame, so this is
     /// where an implementation starts loading what it does not have.
     fn tile(&mut self, tile: [i32; 2]) -> Tile;
@@ -86,13 +89,23 @@ pub enum TileState {
 /// application takes them with [`TileGrid::take_pending`], loads and uploads
 /// them (synchronously or on a thread) and reports back with
 /// [`TileGrid::set`] or [`TileGrid::missing`]. Tiles outside `bounds` are
-/// missing without ever being requested.
+/// missing without ever being requested. Every tile remembers the frame it
+/// was last visible in, so [`TileGrid::evict_unseen`] can hand textures that
+/// scrolled out of view back to the application for freeing.
 pub struct TileGrid {
     pub origin: [f32; 2],
     pub tile_size: [f32; 2],
     /// Inclusive `[min, max]` tile indices that exist, if known.
     pub bounds: Option<[[i32; 2]; 2]>,
-    tiles: HashMap<[i32; 2], TileState>,
+    tiles: HashMap<[i32; 2], Slot>,
+    frame: i32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Slot {
+    state: TileState,
+    /// Frame the view last asked for this tile.
+    seen: i32,
 }
 
 impl TileGrid {
@@ -102,6 +115,7 @@ impl TileGrid {
             tile_size,
             bounds: None,
             tiles: HashMap::new(),
+            frame: 0,
         }
     }
 
@@ -132,8 +146,8 @@ impl TileGrid {
             if out.len() >= max {
                 break;
             }
-            if *v == TileState::Pending {
-                *v = TileState::Loading;
+            if v.state == TileState::Pending {
+                v.state = TileState::Loading;
                 out.push(*k);
             }
         }
@@ -142,32 +156,58 @@ impl TileGrid {
 
     /// Tiles still waiting for [`TileGrid::take_pending`].
     pub fn pending_count(&self) -> usize {
-        self.tiles.values().filter(|v| **v == TileState::Pending).count()
+        self.tiles.values().filter(|v| v.state == TileState::Pending).count()
+    }
+
+    fn put(&mut self, tile: [i32; 2], state: TileState) {
+        let seen = self.frame;
+        self.tiles.entry(tile).and_modify(|s| s.state = state).or_insert(Slot { state, seen });
     }
 
     pub fn set(&mut self, tile: [i32; 2], texture: TextureId) {
-        self.tiles.insert(tile, TileState::Ready(texture));
+        self.put(tile, TileState::Ready(texture));
     }
 
     pub fn missing(&mut self, tile: [i32; 2]) {
-        self.tiles.insert(tile, TileState::Missing);
+        self.put(tile, TileState::Missing);
     }
 
     pub fn state(&self, tile: [i32; 2]) -> TileState {
-        self.tiles.get(&tile).copied().unwrap_or(TileState::Pending)
+        self.tiles.get(&tile).map_or(TileState::Pending, |s| s.state)
     }
 
     /// Forgets a tile so the view requests it again (after the texture was
     /// freed, for instance).
     pub fn evict(&mut self, tile: [i32; 2]) -> Option<TileState> {
-        self.tiles.remove(&tile)
+        self.tiles.remove(&tile).map(|s| s.state)
+    }
+
+    /// Drops every ready or missing tile that has not been visible for more
+    /// than `max_age` frames and returns the textures to free. Tiles still
+    /// loading are kept so a late [`TileGrid::set`] is not lost. Call it once
+    /// a frame (or less) and delete the returned textures.
+    pub fn evict_unseen(&mut self, max_age: i32) -> Vec<([i32; 2], TextureId)> {
+        let frame = self.frame;
+        let mut freed = Vec::new();
+        self.tiles.retain(|k, s| {
+            let stale = frame - s.seen > max_age;
+            match s.state {
+                TileState::Ready(t) if stale => {
+                    freed.push((*k, t));
+                    false
+                }
+                TileState::Missing if stale => false,
+                _ => true,
+            }
+        });
+        freed
     }
 
     /// Number of tiles in each state: `(ready, loading + pending, missing)`.
     pub fn counts(&self) -> (usize, usize, usize) {
         let mut c = (0, 0, 0);
         for v in self.tiles.values() {
-            match v {
+            match v.state {
                 TileState::Ready(_) => c.0 += 1,
                 TileState::Pending | TileState::Loading => c.1 += 1,
                 TileState::Missing => c.2 += 1,
@@ -194,15 +234,48 @@ impl TileSource for TileGrid {
         self.tile_size
     }
 
+    fn begin_frame(&mut self, frame: i32) {
+        self.frame = frame;
+    }
+
     fn tile(&mut self, tile: [i32; 2]) -> Tile {
         if !self.in_bounds(tile) {
             return Tile::Missing;
         }
-        match self.tiles.entry(tile).or_insert(TileState::Pending) {
-            TileState::Ready(t) => Tile::Ready(*t),
+        let frame = self.frame;
+        let slot = self.tiles.entry(tile).or_insert(Slot { state: TileState::Pending, seen: frame });
+        slot.seen = frame;
+        match slot.state {
+            TileState::Ready(t) => Tile::Ready(t),
             TileState::Missing => Tile::Missing,
             TileState::Pending | TileState::Loading => Tile::Loading,
         }
+    }
+}
+
+/// One tile layer of a [`MapView`]: the base map, a geodata raster, a fog
+/// of war … drawn in order, each with its own alpha.
+pub struct Layer<'a> {
+    pub tiles: &'a mut dyn TileSource,
+    /// Multiplied into the tile images (and the style alpha).
+    pub alpha: f32,
+    /// A hidden layer is neither drawn nor asked for tiles.
+    pub visible: bool,
+}
+
+impl<'a> Layer<'a> {
+    pub fn new(tiles: &'a mut dyn TileSource) -> Self {
+        Self { tiles, alpha: 1.0, visible: true }
+    }
+
+    pub fn alpha(mut self, alpha: f32) -> Self {
+        self.alpha = alpha;
+        self
+    }
+
+    pub fn visible(mut self, visible: bool) -> Self {
+        self.visible = visible;
+        self
     }
 }
 
@@ -416,7 +489,10 @@ impl<'ui> Canvas<'ui> {
         true
     }
 
-    fn draw_tiles(&self, ui: &Ui, tiles: &mut dyn TileSource, grid: bool, labels: bool) {
+    /// Draws one tile layer. Placeholders and labels are drawn for the
+    /// `base` layer only; overlays simply show nothing where they have no
+    /// tile yet.
+    fn draw_tiles(&self, ui: &Ui, tiles: &mut dyn TileSource, alpha: f32, base: bool, grid: bool, labels: bool) {
         let o = tiles.origin();
         let ts = tiles.tile_size();
         let (min, max) = self.world_rect();
@@ -436,12 +512,15 @@ impl<'ui> Canvas<'ui> {
                 let state = tiles.tile([ix, iy]);
                 match state {
                     Tile::Ready(t) => {
-                        self.dl.add_image(t, a, b).col(self.c([1.0, 1.0, 1.0, 1.0])).build();
+                        self.dl.add_image(t, a, b).col(self.c([1.0, 1.0, 1.0, alpha])).build();
                     }
-                    Tile::Loading => {
+                    Tile::Loading if base => {
                         self.dl.add_rect(a, b, self.c(color::BG1)).filled(true).build();
                     }
-                    Tile::Missing => {}
+                    Tile::Loading | Tile::Missing => {}
+                }
+                if !base {
+                    continue;
                 }
                 if grid || state == Tile::Loading {
                     self.dl.add_rect(a, b, self.c(color::LINE2)).build();
@@ -556,15 +635,30 @@ impl MapView {
         self.zoom = (self.zoom * factor).clamp(self.min_zoom, self.max_zoom);
     }
 
-    /// Draws the view as a bordered child of `size_` (`0.0` = fill) and
-    /// calls `overlay` on top of the tiles. `follow` is the position to stay
-    /// centred on while [`MapView::follow`] is set.
+    /// Draws the view as a bordered child of `size_` (`0.0` = fill) with one
+    /// tile layer and calls `overlay` on top. `follow` is the position to
+    /// stay centred on while [`MapView::follow`] is set.
     pub fn show(
         &mut self,
         ui: &Ui,
         id: &str,
         size_: [f32; 2],
         tiles: &mut dyn TileSource,
+        follow: Option<[f32; 2]>,
+        overlay: impl FnOnce(&Canvas<'_>),
+    ) -> MapResponse {
+        self.show_layers(ui, id, size_, &mut [Layer::new(tiles)], follow, overlay)
+    }
+
+    /// [`MapView::show`] with several tile layers drawn in order: the first
+    /// is the base map (it gets placeholders and labels), the others are
+    /// overlays such as a rasterised geodata grid.
+    pub fn show_layers(
+        &mut self,
+        ui: &Ui,
+        id: &str,
+        size_: [f32; 2],
+        layers: &mut [Layer<'_>],
         follow: Option<[f32; 2]>,
         overlay: impl FnOnce(&Canvas<'_>),
     ) -> MapResponse {
@@ -635,12 +729,103 @@ impl MapView {
                     }
                 }
 
-                canvas.draw_tiles(ui, tiles, self.show_tile_grid, self.show_tile_labels);
+                let frame = ui.frame_count();
+                for (i, layer) in layers.iter_mut().enumerate() {
+                    if !layer.visible {
+                        continue;
+                    }
+                    layer.tiles.begin_frame(frame);
+                    canvas.draw_tiles(ui, layer.tiles, layer.alpha, i == 0, self.show_tile_grid, self.show_tile_labels);
+                }
                 overlay(&canvas);
                 if self.show_hud {
                     canvas.hud(ui);
                 }
             });
         resp
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn screen_world_roundtrip_and_center() {
+        let (o, sz, c, z) = ([100.0, 50.0], [800.0, 600.0], [83_000.0, 148_000.0], 0.125);
+        // the view centre maps to the world centre
+        assert_eq!(world_to_screen(o, sz, c, z, c), [500.0, 350.0]);
+        for p in [[0.0, 0.0], [83_123.0, 147_900.0], [-5.0, 9.0]] {
+            let back = screen_to_world(o, sz, c, z, world_to_screen(o, sz, c, z, p));
+            assert!((back[0] - p[0]).abs() < 0.01 && (back[1] - p[1]).abs() < 0.01, "{p:?} -> {back:?}");
+        }
+    }
+
+    #[test]
+    fn fit_frames_the_rect() {
+        let mut v = MapView::default();
+        v.fit([0.0, 0.0], [32768.0, 32768.0], [1024.0, 512.0]);
+        assert_eq!(v.center, [16384.0, 16384.0]);
+        assert!((v.zoom - 512.0 / 32768.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn zoom_labels() {
+        assert_eq!(zoom_label(1.0), "1.0:1");
+        assert_eq!(zoom_label(0.125), "1:8");
+        assert_eq!(zoom_label(2.5), "2.5:1");
+    }
+
+    #[test]
+    fn tile_grid_state_machine() {
+        let mut g = TileGrid::new([-20.0 * 32768.0, -18.0 * 32768.0], [32768.0, 32768.0]).with_bounds([16, 10], [26, 26]);
+        assert_eq!(g.tile_at([83_000.0, 148_000.0]), [22, 22]);
+        g.begin_frame(1);
+        assert_eq!(g.tile([22, 22]), Tile::Loading);
+        assert_eq!(g.tile([0, 0]), Tile::Missing, "outside the bounds, never requested");
+        assert_eq!(g.state([22, 22]), TileState::Pending);
+        assert_eq!(g.pending_count(), 1);
+        let p = g.take_pending();
+        assert_eq!(p, vec![[22, 22]]);
+        assert_eq!(g.state([22, 22]), TileState::Loading);
+        assert!(g.take_pending().is_empty(), "loading tiles are not handed out twice");
+        g.set([22, 22], TextureId::new(7));
+        assert_eq!(g.tile([22, 22]), Tile::Ready(TextureId::new(7)));
+        assert_eq!(g.counts(), (1, 0, 0));
+    }
+
+    #[test]
+    fn take_pending_limit_spreads_work() {
+        let mut g = TileGrid::new([0.0, 0.0], [1.0, 1.0]);
+        for i in 0..5 {
+            g.tile([i, 0]);
+        }
+        assert_eq!(g.take_pending_limit(2).len(), 2);
+        assert_eq!(g.pending_count(), 3);
+        assert_eq!(g.take_pending().len(), 3);
+    }
+
+    #[test]
+    fn evict_unseen_frees_old_ready_tiles_but_keeps_loading() {
+        let mut g = TileGrid::new([0.0, 0.0], [1.0, 1.0]);
+        g.begin_frame(1);
+        g.tile([0, 0]);
+        g.tile([1, 0]);
+        g.tile([2, 0]);
+        let _ = g.take_pending_limit(2); // [0,0] and [1,0] loading (hash order unknown)
+        for t in [[0, 0], [1, 0], [2, 0]] {
+            if g.state(t) == TileState::Loading {
+                g.set(t, TextureId::new(10 + t[0] as usize));
+            }
+        }
+        g.missing([5, 5]);
+        g.begin_frame(2);
+        g.tile([2, 0]); // still visible: stays
+        g.begin_frame(1000);
+        let freed = g.evict_unseen(600);
+        assert_eq!(freed.len(), 2, "two ready, unseen tiles freed: {freed:?}");
+        assert_eq!(g.state([5, 5]), TileState::Pending, "missing entries are dropped too");
+        // the never-taken pending tile is kept: a host may still take it
+        assert_eq!(g.counts(), (0, 1, 0));
     }
 }
