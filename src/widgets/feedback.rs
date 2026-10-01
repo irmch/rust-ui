@@ -50,6 +50,11 @@ pub fn modal(ui: &Ui, kit: &Kit, title: &str, size_: Option<[f32; 2]>, body: imp
 
 /// Tooltip with the kit's panel look.
 pub fn tooltip(ui: &Ui, kit: &Kit, text: &str) {
+    tooltip_with(ui, kit, |ui| ui.text_colored(color::FG, text));
+}
+
+/// Tooltip with the kit's panel look and arbitrary content.
+pub fn tooltip_with(ui: &Ui, kit: &Kit, body: impl FnOnce(&Ui)) {
     let _ = kit;
     let _bg = ui.push_style_color(StyleColor::PopupBg, color::BG2);
     let _bd = ui.push_style_color(StyleColor::Border, color::LINE2);
@@ -57,7 +62,7 @@ pub fn tooltip(ui: &Ui, kit: &Kit, text: &str) {
     let _border = ui.push_style_var(StyleVar::WindowBorderSize(size::BORDER));
     let _pad = ui.push_style_var(StyleVar::WindowPadding([size::PAD_X, space::S]));
     let _min = ui.push_style_var(StyleVar::WindowMinSize([0.0, 0.0]));
-    ui.tooltip(|| ui.text_colored(color::FG, text));
+    ui.tooltip(|| body(ui));
 }
 
 /// [`tooltip`] when the previous item is hovered.
@@ -104,7 +109,8 @@ pub fn empty_state(ui: &Ui, kit: &Kit, icon: Option<&str>, title: &str, descript
     let center = avail[0] / 2.0;
     let dl = ui.get_window_draw_list();
     if let Some(g) = icon {
-        let _f = ui.push_font(kit.fonts.mono20b);
+        // 16 px bold: the largest font the icon font is merged into.
+        let _f = ui.push_font(kit.fonts.mono16b);
         let s = ui.calc_text_size(g);
         let p = ui.cursor_screen_pos();
         dl.add_text([p[0] + center - s[0] / 2.0, p[1]], color::FG3, g);
