@@ -14,6 +14,17 @@ pub struct FontFiles<'a> {
     pub regular: &'a [u8],
     pub bold: &'a [u8],
     pub semibold: Option<&'a [u8]>,
+    /// Icon font merged into the body, bold and title fonts (not into the
+    /// 10 / 12 / 20 px ones, to keep the atlas small): e.g. Lucide with its
+    /// Private Use Area range. Glyphs render inline with `ui.text`.
+    pub icons: Option<IconFont<'a>>,
+}
+
+/// An icon font to merge into the text fonts, see [`FontFiles::icons`].
+pub struct IconFont<'a> {
+    pub data: &'a [u8],
+    /// Zero-terminated glyph range pairs, e.g. `&[0xE000, 0xE6FF, 0]`.
+    pub ranges: &'static [u32],
 }
 
 /// Handles of every font in the atlas.
@@ -38,6 +49,7 @@ pub struct Fonts {
 /// (Geometric Shapes) and `✓` `✕` (Dingbats).
 const GLYPH_RANGES: &[u32] = &[
     0x0020, 0x00FF, // Basic Latin + Latin-1 Supplement (× · are here)
+    0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
     0x2010, 0x2027, // General Punctuation: dashes, bullets, ellipsis
     0x2500, 0x25FF, // Box Drawing, Block Elements, Geometric Shapes (□)
     0x2700, 0x27BF, // Dingbats (✓ ✕)
@@ -48,8 +60,9 @@ const GLYPH_RANGES: &[u32] = &[
 /// pair it with `io.font_global_scale = 1.0 / scale` or render at that scale.
 pub fn load(ctx: &mut Context, files: FontFiles<'_>, scale: f32) -> Fonts {
     let semibold = files.semibold.unwrap_or(files.bold);
-    let add = |ctx: &mut Context, data: &[u8], px: f32, extra_x: f32| -> FontId {
-        ctx.fonts().add_font(&[FontSource::TtfData {
+    let icons = files.icons.as_ref();
+    let add = |ctx: &mut Context, data: &[u8], px: f32, extra_x: f32, with_icons: bool| -> FontId {
+        let mut sources = vec![FontSource::TtfData {
             data,
             size_pixels: px * scale,
             config: Some(FontConfig {
@@ -60,15 +73,30 @@ pub fn load(ctx: &mut Context, files: FontFiles<'_>, scale: f32) -> Fonts {
                 glyph_ranges: FontGlyphRanges::from_slice(GLYPH_RANGES),
                 ..FontConfig::default()
             }),
-        }])
+        }];
+        if let (true, Some(ic)) = (with_icons, icons) {
+            // Every source after the first is merged into the same font.
+            sources.push(FontSource::TtfData {
+                data: ic.data,
+                size_pixels: px * scale,
+                config: Some(FontConfig {
+                    oversample_h: 2,
+                    oversample_v: 2,
+                    pixel_snap_h: true,
+                    glyph_ranges: FontGlyphRanges::from_slice(ic.ranges),
+                    ..FontConfig::default()
+                }),
+            });
+        }
+        ctx.fonts().add_font(&sources)
     };
     // The first font added becomes the default one: body 13.
-    let mono13 = add(ctx, files.regular, font::BODY, 0.0);
-    let mono13b = add(ctx, files.bold, font::BODY, 0.0);
-    let mono12 = add(ctx, files.regular, font::SMALL, 0.0);
-    let mono10 = add(ctx, semibold, font::CAPTION, font::CAPTION_TRACKING);
-    let mono16b = add(ctx, files.bold, font::TITLE, 0.0);
-    let mono20b = add(ctx, files.bold, font::DISPLAY, 0.0);
+    let mono13 = add(ctx, files.regular, font::BODY, 0.0, true);
+    let mono13b = add(ctx, files.bold, font::BODY, 0.0, true);
+    let mono12 = add(ctx, files.regular, font::SMALL, 0.0, false);
+    let mono10 = add(ctx, semibold, font::CAPTION, font::CAPTION_TRACKING, false);
+    let mono16b = add(ctx, files.bold, font::TITLE, 0.0, true);
+    let mono20b = add(ctx, files.bold, font::DISPLAY, 0.0, false);
     Fonts {
         mono10,
         mono12,

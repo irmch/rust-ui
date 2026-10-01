@@ -78,6 +78,7 @@ fn font_files() -> FontFiles<'static> {
         regular: include_bytes!("../../assets/JetBrainsMono-Regular.ttf"),
         bold: include_bytes!("../../assets/JetBrainsMono-Bold.ttf"),
         semibold: Some(include_bytes!("../../assets/JetBrainsMono-SemiBold.ttf")),
+        icons: None,
     }
 }
 

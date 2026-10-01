@@ -32,6 +32,7 @@ let fonts = fonts::load(&mut ctx, FontFiles {
     regular: include_bytes!("assets/JetBrainsMono-Regular.ttf"),
     bold: include_bytes!("assets/JetBrainsMono-Bold.ttf"),
     semibold: Some(include_bytes!("assets/JetBrainsMono-SemiBold.ttf")),
+    icons: None, // or Some(IconFont { data, ranges }) to merge an icon font
 }, hidpi_scale);
 let kit = Kit::new(fonts);
 

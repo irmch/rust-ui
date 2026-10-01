@@ -15,6 +15,7 @@
 //!     regular: &regular,
 //!     bold: &bold,
 //!     semibold: None,
+//!     icons: None,
 //! }, 1.0);
 //! let kit = Kit::new(fonts);
 //! let mut auto_restart = true;
