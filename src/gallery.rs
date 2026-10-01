@@ -9,6 +9,7 @@ use imgui::{StyleVar, TableFlags, TableRowFlags, Ui};
 use crate::anim;
 use crate::fonts::Fonts;
 use crate::grid::{self, Grid};
+use crate::map_demo::MapPage;
 use crate::theme::ButtonKind;
 use crate::tokens::{color, size, space};
 use crate::widgets::{self as w, TagKind};
@@ -35,6 +36,8 @@ pub struct Gallery {
     pub raw: f32,
     pub disabled: bool,
     pub events: Vec<String>,
+    /// The Map tab.
+    pub map: MapPage,
 }
 
 impl Default for Gallery {
@@ -52,6 +55,7 @@ impl Default for Gallery {
             raw: 0.4,
             disabled: true,
             events: Vec::new(),
+            map: MapPage::default(),
         }
     }
 }
@@ -69,7 +73,7 @@ const ACCOUNTS: [(&str, &str, TagKind, &str); 6] = [
 ];
 
 impl Gallery {
-    /// Draws the gallery page for `tab` (1 ..= 6) into the current window.
+    /// Draws the gallery page for `tab` (1 ..= 7) into the current window.
     pub fn draw(&mut self, ui: &Ui, f: &Fonts, tab: usize) {
         match tab {
             1 => self.accounts(ui, f),
@@ -77,6 +81,7 @@ impl Gallery {
             3 => self.proxies(ui, f),
             4 => self.resources(ui, f),
             5 => self.tools(ui, f),
+            7 => self.map.draw(ui, f),
             _ => self.settings(ui, f),
         }
     }

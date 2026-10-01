@@ -77,7 +77,7 @@ pub enum LaunchEvent {
     Window(TitleBarAction),
 }
 
-const TABS: [&str; 7] = ["Launch", "Accounts", "Instances", "Proxies", "Resources", "Tools", "Settings"];
+const TABS: [&str; 8] = ["Launch", "Accounts", "Instances", "Proxies", "Resources", "Tools", "Settings", "Map"];
 
 impl LaunchScreen {
     /// Draws the screen as a borderless full-display window.
@@ -183,9 +183,15 @@ impl LaunchScreen {
         } else {
             // Other tabs: the scrolling widget gallery
             let tab = self.tab;
+            // The map fills its page and takes the wheel itself.
+            let flags = if tab == 7 {
+                WindowFlags::ALWAYS_USE_WINDOW_PADDING | WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE
+            } else {
+                WindowFlags::ALWAYS_USE_WINDOW_PADDING
+            };
             ui.child_window("##gallery")
                 .size([content_w, 0.0])
-                .flags(WindowFlags::ALWAYS_USE_WINDOW_PADDING)
+                .flags(flags)
                 .build(|| self.gallery.draw(ui, f, tab));
         }
         ev

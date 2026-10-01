@@ -31,12 +31,16 @@
 //! - [`demo`]: the reference Launch screen (artboard 06).
 //! - [`gallery`]: every widget in every state, shown on the other tabs of the demo.
 //! - [`anim`]: toggle / tab / page animations and the switches to turn them off.
+//! - [`map`]: tiled map view with pan / zoom, block-wise tile loading and a world-unit canvas.
+//! - [`map_demo`]: the Map tab of the demo, an L2-style world with synthetic geodata.
 
 pub mod anim;
 pub mod demo;
 pub mod fonts;
 pub mod gallery;
 pub mod grid;
+pub mod map;
+pub mod map_demo;
 pub mod theme;
 pub mod tokens;
 pub mod widgets;

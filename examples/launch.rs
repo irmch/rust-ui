@@ -15,11 +15,12 @@ use glutin::{
     display::{GetGlDisplay, GlDisplay},
     surface::{GlSurface, Surface, SurfaceAttributesBuilder, SwapInterval, WindowSurface},
 };
-use imgui::MouseButton;
+use imgui::{MouseButton, TextureId};
 use imgui_kit::{
     demo::{LaunchEvent, LaunchScreen},
     fonts::{self, FontFiles},
-    theme,
+    map::TileGrid,
+    map_demo, theme,
     tokens::{color, size},
     widgets::TitleBarAction,
 };
@@ -88,6 +89,9 @@ fn main() {
                 let ui = imgui.frame();
                 let display = ui.io().display_size;
                 let ev = screen.draw(ui, &fonts, display);
+
+                // Map tiles the view asked for this frame: decode + upload.
+                load_pending_tiles(renderer.gl_context(), &mut screen.gallery.map.tiles);
 
                 // Empty title-bar area acts as the OS drag handle.
                 let [_, my] = ui.io().mouse_pos;
@@ -172,6 +176,49 @@ fn create_window() -> (EventLoop<()>, Window, Surface<WindowSurface>, PossiblyCu
     let _ = surface.set_swap_interval(&context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()));
 
     (event_loop, window, surface, context)
+}
+
+/// Loads every tile the map view marked pending. A region image is read
+/// from `assets/map/{x}_{y}.png` (or `.jpg`) when present, otherwise the
+/// synthetic terrain of the demo is rendered into a 256 × 256 texture.
+fn load_pending_tiles(gl: &glow::Context, tiles: &mut TileGrid) {
+    for tile in tiles.take_pending() {
+        let from_file = ["png", "jpg"].iter().find_map(|ext| {
+            let path = format!("assets/map/{}_{}.{ext}", tile[0], tile[1]);
+            image::open(&path).ok().map(|img| img.to_rgba8())
+        });
+        let (w, h, pixels) = match from_file {
+            Some(img) => (img.width() as i32, img.height() as i32, img.into_raw()),
+            None => (256, 256, map_demo::tile_pixels(tile)),
+        };
+        tiles.set(tile, upload_rgba(gl, w, h, &pixels));
+    }
+}
+
+/// Creates a GL texture; imgui-glow-renderer's SimpleTextureMap uses the GL
+/// name itself as the imgui texture id.
+fn upload_rgba(gl: &glow::Context, w: i32, h: i32, pixels: &[u8]) -> TextureId {
+    unsafe {
+        let tex = gl.create_texture().expect("create texture");
+        gl.bind_texture(glow::TEXTURE_2D, Some(tex));
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
+        gl.tex_image_2d(
+            glow::TEXTURE_2D,
+            0,
+            glow::RGBA as i32,
+            w,
+            h,
+            0,
+            glow::RGBA,
+            glow::UNSIGNED_BYTE,
+            Some(pixels),
+        );
+        gl.bind_texture(glow::TEXTURE_2D, None);
+        TextureId::new(tex.0.get() as usize)
+    }
 }
 
 fn glow_context(context: &PossiblyCurrentContext) -> glow::Context {

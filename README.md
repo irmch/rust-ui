@@ -16,6 +16,7 @@ The design source is the canvas **ImGui Rust UI Kit**
 | 06 Reference screen | `demo::LaunchScreen` | the Launch screen built from the above |
 | all of the above | `gallery::Gallery` | every widget in every state on the Accounts … Settings tabs of the demo |
 | — | `anim` | toggle, tab and page animations; `anim::set` / `anim::set_enabled` switch them off |
+| — | `map`, `map_demo` | tiled map view: pan / zoom camera, block-wise tile loading, world-unit canvas for geodata and entities; the Map tab |
 
 ## Usage
 
@@ -85,3 +86,27 @@ Checkbox, radio and switch toggles, the active-tab highlight and the page
 change are animated (140 / 50 / 220 ms). The *Animation* section at the top of
 the Settings tab turns each one off and scales the durations; in code use
 `anim::set(anim::Settings { .. })` or `anim::set_enabled(false)`.
+
+## Map view
+
+`map::MapView` draws a map in three layers you control separately:
+
+- **Camera.** `center` in world units, `zoom` in px per unit. Left-drag pans,
+  the wheel zooms around the cursor, `follow` keeps the centre on a target
+  (panning by hand turns it off). `fit` frames a world rect.
+- **Tiles.** A `TileSource` hands out the background block by block, like
+  L2 map regions: the view asks only for visible tiles and draws a
+  placeholder for one that is not ready yet. `TileGrid` is the ready-made
+  source: each frame call `take_pending()`, decode and upload the images any
+  way you like, then `set(tile, texture_id)`. The crate itself never reads
+  files or touches the GPU.
+- **Canvas.** The overlay closure gets world → screen conversion plus lines,
+  rects, circles (pixel or world radius), text, labels, markers, arrows, a
+  culled `cells(..)` filler for geodata with level-of-detail and `grid(..)`.
+
+The Map tab (`map_demo`) is an L2-style world: regions of 32768 units named
+`x_y`, blocks of 8 × 8 cells of 16 units, synthetic `geo_cell(cx, cy)`
+(height + NSWE) drawn as cells and walls, a walking player with sight range
+and trail, NPCs with labels, click to select an NPC or set a waypoint. Drop
+real region images into `assets/map/22_22.png` and the example picks them up
+instead of the generated ones; replace `geo_cell` with your parser.

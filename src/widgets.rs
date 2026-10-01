@@ -84,6 +84,12 @@ pub fn button_sized(ui: &Ui, f: &Fonts, kind: ButtonKind, label: &str, sz: [f32;
     ui.button_with_size(label, sz)
 }
 
+/// Width [`button_small`] will take for `label`, for right-aligning.
+pub fn button_small_width(ui: &Ui, f: &Fonts, label: &str) -> f32 {
+    let _f = ui.push_font(f.mono12);
+    ui.calc_text_size(label)[0] + 20.0
+}
+
 /// Small 24 px button (toolbar "Copy", "Save").
 pub fn button_small(ui: &Ui, f: &Fonts, kind: ButtonKind, label: &str) -> bool {
     let _f = ui.push_font(f.mono12);
