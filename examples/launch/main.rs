@@ -56,7 +56,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-const TITLE: &str = "PoEMulti · imgui_kit demo";
+const TITLE: &str = "Launcher · imgui_kit demo";
 const WIDTH: u32 = 1280;
 const HEIGHT: u32 = 800;
 

@@ -78,7 +78,7 @@ pub fn log_line(ui: &Ui, kit: &Kit, seconds: f32, message: &str, col: Option<Rgb
     ui.text_colored(col.unwrap_or(color::FG), message);
 }
 
-/// "✓ Verified · Path of Exile 2" line under the game path input.
+/// "✓ Verified · MyGame" line under the game path input.
 pub fn verified_line(ui: &Ui, kit: &Kit, ok: bool, label: &str, detail: &str) {
     let (mark, col) = if ok { ("✓", color::OK) } else { ("✕", color::ERR) };
     text_bold(ui, kit, &format!("{mark} {label}"), col);

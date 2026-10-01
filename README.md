@@ -1,6 +1,6 @@
 # imgui_kit
 
-UI kit for [imgui-rs](https://github.com/imgui-rs/imgui-rs) in the PoEMulti look:
+UI kit for [imgui-rs](https://github.com/imgui-rs/imgui-rs) in a dark launcher look:
 dark only, JetBrains Mono, 8 px unit, 12-column grid.
 
 The design source is the canvas **ImGui Rust UI Kit**
@@ -96,11 +96,11 @@ a reference for what an application has to do:
   something animates.
 - **DPI.** A scale-factor change rebuilds the font atlas and the renderer.
 - **Settings.** Tab, options, map camera and animation settings are saved to
-  `poemulti.settings` next to the executable on exit and restored on start
+  `launcher.settings` next to the executable on exit and restored on start
   (`settings.rs`, plain `key=value`).
 - **Clipboard.** `arboard` is wired in as imgui's clipboard backend: Ctrl+C /
   Ctrl+V in text fields and the log's Copy button work; Save writes
-  `poemulti.log` next to the executable.
+  `launcher.log` next to the executable.
 - **Hotkeys.** Ctrl+1…8 pick a tab, Ctrl+Tab / Ctrl+Shift+Tab cycle,
   Ctrl+Enter launches, Ctrl+Backspace stops everything.
 - The OS window is undecorated: the kit's title bar is the drag handle and

@@ -6,7 +6,7 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-const FILE: &str = "poemulti.settings";
+const FILE: &str = "launcher.settings";
 
 #[derive(Debug, Default, Clone)]
 pub struct Settings(BTreeMap<String, String>);
@@ -34,7 +34,7 @@ impl Settings {
     }
 
     pub fn save(&self) -> std::io::Result<()> {
-        let mut out = String::from("# PoEMulti demo settings, written on exit\n");
+        let mut out = String::from("# Launcher demo settings, written on exit\n");
         for (k, v) in &self.0 {
             out.push_str(k);
             out.push('=');

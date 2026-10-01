@@ -96,7 +96,7 @@ impl LaunchScreen {
         let _pad = ui.push_style_var(StyleVar::WindowPadding([0.0, 0.0]));
         let _rounding = ui.push_style_var(StyleVar::WindowRounding(0.0));
         let _border = ui.push_style_var(StyleVar::WindowBorderSize(0.0));
-        ui.window("##poemulti")
+        ui.window("##launcher")
             .position([0.0, 0.0], Condition::Always)
             .size(display_size, Condition::Always)
             .flags(
@@ -118,7 +118,7 @@ impl LaunchScreen {
     fn body(&mut self, ui: &Ui, kit: &Kit, width: f32, events: &mut Vec<LaunchEvent>) {
 
         // 1. title bar ---------------------------------------------------
-        let act = w::title_bar(ui, kit, "PoEMulti", TABS[self.tab], &TABS, &mut self.tab);
+        let act = w::title_bar(ui, kit, "Launcher", TABS[self.tab], &TABS, &mut self.tab);
         if act != TitleBarAction::None {
             events.push(LaunchEvent::Window(act));
         }
@@ -213,7 +213,7 @@ impl LaunchScreen {
         if open {
             events.push(LaunchEvent::OpenFolder);
         }
-        w::verified_line(ui, kit, self.path_ok, if self.path_ok { "Verified" } else { "Not found" }, "Path of Exile 2");
+        w::verified_line(ui, kit, self.path_ok, if self.path_ok { "Verified" } else { "Not found" }, "MyGame");
 
         grid::section_gap(ui);
 
@@ -416,7 +416,7 @@ impl LaunchScreen {
             }
             LaunchEvent::CopyLog => self.log("Log copied to clipboard"),
             LaunchEvent::SaveLog => {
-                let path = crate::assets::data_dir().join("poemulti.log");
+                let path = crate::assets::data_dir().join("launcher.log");
                 match std::fs::write(&path, self.log_text()) {
                     Ok(()) => self.log(format!("Log saved to {}", path.display())),
                     Err(e) => self.log(format!("Log not saved: {e}")),

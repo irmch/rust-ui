@@ -262,7 +262,7 @@ impl Gallery {
         if open {
             self.note("open");
         }
-        w::verified_line(ui, kit, true, "Verified", "Path of Exile 2");
+        w::verified_line(ui, kit, true, "Verified", "MyGame");
         w::verified_line(ui, kit, false, "Not found", "check the path");
 
         grid::section_gap(ui);
