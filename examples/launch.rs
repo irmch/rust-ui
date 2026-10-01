@@ -66,6 +66,8 @@ fn main() {
 
     let mut screen = LaunchScreen::default();
     let mut last_frame = Instant::now();
+    // IMGUI_KIT_FPS=1 prints frame-time stats once a second (perf checks).
+    let mut stats = std::env::var_os("IMGUI_KIT_FPS").map(|_| FrameStats::default());
     let [r, g, b, _] = color::BG0;
 
     event_loop
@@ -86,6 +88,7 @@ fn main() {
                     gl.clear(glow::COLOR_BUFFER_BIT);
                 }
 
+                let ui_start = Instant::now();
                 let ui = imgui.frame();
                 let display = ui.io().display_size;
                 let ev = screen.draw(ui, &fonts, display);
@@ -101,9 +104,15 @@ fn main() {
 
                 platform.prepare_render(ui, &window);
                 let draw_data = imgui.render();
+                // UI build: widgets + draw lists, pure CPU, no GL calls.
+                let ui_ms = ui_start.elapsed().as_secs_f32() * 1000.0;
+                let (verts, idx) = (draw_data.total_vtx_count, draw_data.total_idx_count);
                 renderer.render(draw_data).expect("error rendering imgui");
                 surface.swap_buffers(&context).expect("failed to swap buffers");
 
+                if let Some(s) = stats.as_mut() {
+                    s.push(ui_ms, verts, idx, screen.tab, screen.gallery.map.view.zoom);
+                }
                 if drag {
                     let _ = window.drag_window();
                 }
@@ -131,6 +140,38 @@ fn main() {
             event => platform.handle_event(imgui.io_mut(), &window, &event),
         })
         .expect("event loop error");
+}
+
+/// Per-second report of the UI build time (widgets + draw lists, no GL,
+/// so no vsync wait inside) and the draw-list size.
+#[derive(Default)]
+struct FrameStats {
+    samples: Vec<f32>,
+    verts: i32,
+    idx: i32,
+    since: Option<Instant>,
+}
+
+impl FrameStats {
+    fn push(&mut self, ui_ms: f32, verts: i32, idx: i32, tab: usize, zoom: f32) {
+        let since = *self.since.get_or_insert_with(Instant::now);
+        self.samples.push(ui_ms);
+        self.verts = self.verts.max(verts);
+        self.idx = self.idx.max(idx);
+        if since.elapsed().as_secs_f32() >= 1.0 {
+            let n = self.samples.len() as f32;
+            let avg = self.samples.iter().sum::<f32>() / n;
+            let max = self.samples.iter().cloned().fold(0.0, f32::max);
+            println!(
+                "ui: tab {tab} zoom {zoom:.3} avg {avg:.2} ms max {max:.2} ms verts {} idx {}",
+                self.verts, self.idx
+            );
+            self.samples.clear();
+            self.verts = 0;
+            self.idx = 0;
+            self.since = Some(Instant::now());
+        }
+    }
 }
 
 fn create_window() -> (EventLoop<()>, Window, Surface<WindowSurface>, PossiblyCurrentContext) {
