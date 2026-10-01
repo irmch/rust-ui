@@ -129,7 +129,13 @@ fn main() {
                 // Delta time between rendered frames (not between event-loop
                 // wake-ups: with on-demand rendering those are far more frequent).
                 let now = Instant::now();
-                imgui.io_mut().update_delta_time(now - last_frame);
+                let mut dt = now - last_frame;
+                if dt > 2 * ACTIVE_PERIOD {
+                    // The loop was asleep, not slow: do not let animations
+                    // jump by the whole idle gap on their first frame.
+                    dt = ACTIVE_PERIOD;
+                }
+                imgui.io_mut().update_delta_time(dt);
                 last_frame = now;
                 platform.prepare_frame(imgui.io_mut(), &window).unwrap();
                 unsafe {
@@ -148,8 +154,12 @@ fn main() {
                 // caret has to blink.
                 animating = anim::animating(ui) || screen.is_animating() || ui.io().want_text_input;
 
-                // Map tiles the view asked for this frame: decode + upload.
-                load_pending_tiles(renderer.gl_context(), &mut screen.gallery.map.tiles);
+                // Map tiles the view asked for this frame: decode + upload a
+                // few, then make sure a frame shows them / loads the rest.
+                let loaded = load_pending_tiles(renderer.gl_context(), &mut screen.gallery.map.tiles);
+                if loaded > 0 || screen.gallery.map.tiles.pending_count() > 0 {
+                    animating = true;
+                }
 
                 // Empty title-bar area acts as the OS drag handle.
                 let [_, my] = ui.io().mouse_pos;
@@ -170,6 +180,9 @@ fn main() {
                 }
                 if drag {
                     let _ = window.drag_window();
+                    // The OS runs the drag and eats the button release, so
+                    // tell imgui ourselves or it keeps the button "held".
+                    imgui.io_mut().add_mouse_button_event(MouseButton::Left, false);
                 }
                 match ev {
                     LaunchEvent::None => {}
@@ -293,11 +306,18 @@ fn create_window() -> (EventLoop<()>, Window, Surface<WindowSurface>, PossiblyCu
     (event_loop, window, surface, context)
 }
 
-/// Loads every tile the map view marked pending. A region image is read
-/// from `assets/map/{x}_{y}.png` (or `.jpg`) when present, otherwise the
-/// synthetic terrain of the demo is rendered into a 256 × 256 texture.
-fn load_pending_tiles(gl: &glow::Context, tiles: &mut TileGrid) {
-    for tile in tiles.take_pending() {
+/// Tiles decoded per frame: the demo decodes on the main thread, so bound
+/// the stall (one synthetic tile is ~130k terrain samples).
+const TILES_PER_FRAME: usize = 4;
+
+/// Loads up to [`TILES_PER_FRAME`] tiles the map view marked pending and
+/// returns how many. A region image is read from `assets/map/{x}_{y}.png`
+/// (or `.jpg`) when present, otherwise the synthetic terrain of the demo is
+/// rendered into a 256 × 256 texture.
+fn load_pending_tiles(gl: &glow::Context, tiles: &mut TileGrid) -> usize {
+    let pending = tiles.take_pending_limit(TILES_PER_FRAME);
+    let n = pending.len();
+    for tile in pending {
         let from_file = ["png", "jpg"].iter().find_map(|ext| {
             let path = format!("assets/map/{}_{}.{ext}", tile[0], tile[1]);
             image::open(&path).ok().map(|img| img.to_rgba8())
@@ -308,6 +328,7 @@ fn load_pending_tiles(gl: &glow::Context, tiles: &mut TileGrid) {
         };
         tiles.set(tile, upload_rgba(gl, w, h, &pixels));
     }
+    n
 }
 
 /// Creates a GL texture; imgui-glow-renderer's SimpleTextureMap uses the GL

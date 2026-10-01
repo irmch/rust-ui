@@ -99,6 +99,7 @@ impl Grid {
     /// Lays out one row of cells with the given column spans (they should add
     /// up to `cols`). `cell` is called with the cell index and its width.
     pub fn row(&self, ui: &Ui, id: &str, spans: &[u32], mut cell: impl FnMut(&Ui, usize, f32)) {
+        let _row = ui.push_id(id);
         let avail = ui.content_region_avail()[0];
         let mut x = ui.cursor_pos()[0];
         let y = ui.cursor_pos()[1];
@@ -114,7 +115,6 @@ impl Grid {
             max_y = max_y.max(ui.cursor_pos()[1]);
             x += w + self.gutter;
         }
-        let _ = id;
         ui.set_cursor_pos([ui.cursor_pos()[0], max_y]);
     }
 }

@@ -14,6 +14,20 @@ use crate::tokens::{color, size, space, Rgba};
 // Text
 // ---------------------------------------------------------------------------
 
+/// Current `style.alpha`, the value [`disabled`] and page fades push.
+/// imgui applies it only to style-slot colours; anything drawn through the
+/// draw list with an explicit colour has to apply it itself via [`fade`].
+pub fn style_alpha(ui: &Ui) -> f32 {
+    let _ = ui;
+    // SAFETY: a Ui exists, so the current context and its style are valid.
+    unsafe { (*imgui::sys::igGetStyle()).Alpha }
+}
+
+/// `c` with its alpha multiplied by `alpha` (see [`style_alpha`]).
+pub fn fade(c: Rgba, alpha: f32) -> Rgba {
+    [c[0], c[1], c[2], c[3] * alpha]
+}
+
 /// Ascent of `font` in screen pixels, for aligning texts of different sizes
 /// on one baseline (`y_small = y_big + ascent(big) - ascent(small)`).
 fn ascent(ui: &Ui, font: imgui::FontId) -> f32 {
@@ -182,6 +196,7 @@ fn check_like(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, value: &mut b
     let hovered = ui.is_item_hovered();
     // 0 = off, 1 = on; eases over anim::CONTROL seconds when enabled.
     let t = anim::toggle(ui, anim::key(ui, "##box"), *value, anim::CONTROL);
+    let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
     let by = p[1] + ((row_h - b) / 2.0).round();
     let off_bg = if hovered { color::BG3 } else { color::BG1 };
@@ -189,21 +204,21 @@ fn check_like(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, value: &mut b
     let bg = anim::mix(off_bg, on_bg, t);
     let border = anim::mix(color::LINE2, color::ACCENT, t);
     let rounding = if round { b / 2.0 } else { size::RADIUS };
-    dl.add_rect([p[0], by], [p[0] + b, by + b], bg)
+    dl.add_rect([p[0], by], [p[0] + b, by + b], fade(bg, al))
         .rounding(rounding)
         .filled(true)
         .build();
-    dl.add_rect([p[0], by], [p[0] + b, by + b], border)
+    dl.add_rect([p[0], by], [p[0] + b, by + b], fade(border, al))
         .rounding(rounding)
         .build();
     if t > 0.0 {
         let c = [p[0] + b / 2.0, by + b / 2.0];
         if round {
-            dl.add_circle(c, 4.0 * t, color::ACCENT).filled(true).build();
+            dl.add_circle(c, 4.0 * t, fade(color::ACCENT, al)).filled(true).build();
         } else {
             // the mark grows from the centre of the box
             let q = |x: f32, y: f32| [c[0] + (p[0] + x - c[0]) * t, c[1] + (by + y - c[1]) * t];
-            let ink = [color::BG0[0], color::BG0[1], color::BG0[2], t];
+            let ink = [color::BG0[0], color::BG0[1], color::BG0[2], t * al];
             dl.add_line(q(4.0, 9.5), q(7.5, 13.0), ink).thickness(1.6).build();
             dl.add_line(q(7.5, 13.0), q(14.0, 5.0), ink).thickness(1.6).build();
         }
@@ -212,13 +227,13 @@ fn check_like(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, value: &mut b
     {
         let _f = ui.push_font(f.mono13b);
         let ty = p[1] + ((row_h - ui.text_line_height()) / 2.0).round();
-        dl.add_text([x, ty], color::FG, label);
+        dl.add_text([x, ty], fade(color::FG, al), label);
         x += label_w + space::S;
     }
     if let Some(h) = hint {
         let _f = ui.push_font(f.mono12);
         let ty = p[1] + ((row_h - ui.text_line_height()) / 2.0).round();
-        dl.add_text([x, ty], color::FG3, h);
+        dl.add_text([x, ty], fade(color::FG3, al), h);
     }
     clicked
 }
@@ -238,11 +253,12 @@ pub fn switch(ui: &Ui, f: &Fonts, label: &str, value: &mut bool) -> bool {
         *value = !*value;
     }
     let t = anim::toggle(ui, anim::key(ui, "##sw"), *value, anim::CONTROL);
+    let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
     let y = p[1] + ((row_h - sh) / 2.0).round();
-    let bg = anim::mix(color::BG4, color::ACCENT, t);
-    let border = anim::mix(color::LINE2, color::ACCENT, t);
-    let knob = anim::mix(color::FG3, color::BG0, t);
+    let bg = fade(anim::mix(color::BG4, color::ACCENT, t), al);
+    let border = fade(anim::mix(color::LINE2, color::ACCENT, t), al);
+    let knob = fade(anim::mix(color::FG3, color::BG0, t), al);
     let kx = p[0] + sh / 2.0 + (sw - sh) * t;
     dl.add_rect([p[0], y], [p[0] + sw, y + sh], bg)
         .rounding(sh / 2.0)
@@ -256,7 +272,7 @@ pub fn switch(ui: &Ui, f: &Fonts, label: &str, value: &mut bool) -> bool {
         .build();
     let _f = ui.push_font(f.mono13b);
     let ty = p[1] + ((row_h - ui.text_line_height()) / 2.0).round();
-    dl.add_text([p[0] + sw + space::M, ty], color::FG, label);
+    dl.add_text([p[0] + sw + space::M, ty], fade(color::FG, al), label);
     clicked
 }
 
@@ -295,13 +311,14 @@ pub fn slider_track(ui: &Ui, id: &str, value: &mut f32, min: f32, max: f32, step
     let t = ((*value - min) / range).clamp(0.0, 1.0);
     let kx = x0 + (x1 - x0) * t;
     let cy = p[1] + h / 2.0;
+    let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
     let th = size::TRACK / 2.0;
-    dl.add_rect([x0, cy - th], [x1, cy + th], color::BG4)
+    dl.add_rect([x0, cy - th], [x1, cy + th], fade(color::BG4, al))
         .rounding(th)
         .filled(true)
         .build();
-    dl.add_rect([x0, cy - th], [kx, cy + th], color::FG3)
+    dl.add_rect([x0, cy - th], [kx, cy + th], fade(color::FG3, al))
         .rounding(th)
         .filled(true)
         .build();
@@ -310,8 +327,8 @@ pub fn slider_track(ui: &Ui, id: &str, value: &mut f32, min: f32, max: f32, step
     } else {
         color::ACCENT
     };
-    dl.add_circle([kx, cy], k, color::BG0).filled(true).build();
-    dl.add_circle([kx, cy], k - 1.0, knob).filled(true).build();
+    dl.add_circle([kx, cy], k, fade(color::BG0, al)).filled(true).build();
+    dl.add_circle([kx, cy], k - 1.0, fade(knob, al)).filled(true).build();
     changed
 }
 
@@ -374,14 +391,15 @@ pub fn progress(ui: &Ui, fraction: f32, width: f32) {
     let p = ui.cursor_screen_pos();
     let w = if width > 0.0 { width } else { ui.content_region_avail()[0] };
     ui.dummy([w, 8.0]);
+    let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
-    dl.add_rect(p, [p[0] + w, p[1] + 8.0], color::BG4)
+    dl.add_rect(p, [p[0] + w, p[1] + 8.0], fade(color::BG4, al))
         .rounding(4.0)
         .filled(true)
         .build();
     let fw = w * fraction.clamp(0.0, 1.0);
     if fw > 0.0 {
-        dl.add_rect(p, [p[0] + fw, p[1] + 8.0], color::ACCENT)
+        dl.add_rect(p, [p[0] + fw, p[1] + 8.0], fade(color::ACCENT, al))
             .rounding(4.0)
             .filled(true)
             .build();
@@ -448,12 +466,13 @@ pub fn tag(ui: &Ui, f: &Fonts, kind: TagKind, text: &str) {
     let p = ui.cursor_screen_pos();
     ui.dummy([w, size::TAG]);
     let (bg, border, fg) = kind.colors();
+    let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
     let q = [p[0] + w, p[1] + size::TAG];
-    dl.add_rect(p, q, bg).rounding(size::RADIUS).filled(true).build();
-    dl.add_rect(p, q, border).rounding(size::RADIUS).build();
+    dl.add_rect(p, q, fade(bg, al)).rounding(size::RADIUS).filled(true).build();
+    dl.add_rect(p, q, fade(border, al)).rounding(size::RADIUS).build();
     let ty = p[1] + ((size::TAG - ui.text_line_height()) / 2.0).round();
-    dl.add_text([p[0] + space::S, ty], fg, &txt);
+    dl.add_text([p[0] + space::S, ty], fade(fg, al), &txt);
 }
 
 /// 8 px status dot followed by text.
@@ -462,7 +481,7 @@ pub fn status_dot(ui: &Ui, col: Rgba, text: &str) {
     let lh = ui.text_line_height();
     ui.dummy([8.0, lh]);
     ui.get_window_draw_list()
-        .add_circle([p[0] + 4.0, p[1] + lh / 2.0], 4.0, col)
+        .add_circle([p[0] + 4.0, p[1] + lh / 2.0], 4.0, fade(col, style_alpha(ui)))
         .filled(true)
         .build();
     ui.same_line_with_spacing(0.0, 6.0);
@@ -501,7 +520,7 @@ pub fn vdivider(ui: &Ui, h: f32) {
     let p = ui.cursor_screen_pos();
     ui.dummy([1.0, h]);
     ui.get_window_draw_list()
-        .add_line(p, [p[0], p[1] + h], color::LINE)
+        .add_line(p, [p[0], p[1] + h], fade(color::LINE, style_alpha(ui)))
         .build();
 }
 
@@ -513,7 +532,7 @@ fn bottom_border(ui: &Ui) {
     let p = ui.window_pos();
     let s = ui.window_size();
     ui.get_window_draw_list()
-        .add_line([p[0], p[1] + s[1] - 1.0], [p[0] + s[0], p[1] + s[1] - 1.0], color::LINE)
+        .add_line([p[0], p[1] + s[1] - 1.0], [p[0] + s[0], p[1] + s[1] - 1.0], fade(color::LINE, style_alpha(ui)))
         .build();
 }
 
@@ -581,7 +600,7 @@ pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], acti
                 let wp = ui.window_pos();
                 let a = [wp[0] + hx, wp[1] + tabs_y];
                 ui.get_window_draw_list()
-                    .add_rect(a, [a[0] + hw, a[1] + size::CONTROL], color::BG3)
+                    .add_rect(a, [a[0] + hw, a[1] + size::CONTROL], fade(color::BG3, style_alpha(ui)))
                     .rounding(size::RADIUS)
                     .filled(true)
                     .build();
@@ -625,12 +644,13 @@ pub fn window_control(ui: &Ui, which: TitleBarAction) -> bool {
     let clicked = ui.invisible_button(id, [s, s]);
     let hovered = ui.is_item_hovered();
     let active = ui.is_item_active();
+    let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
     if hovered || active {
-        let bg = if active { color::BG2 } else { color::BG3 };
+        let bg = fade(if active { color::BG2 } else { color::BG3 }, al);
         dl.add_rect(p, [p[0] + s, p[1] + s], bg).rounding(size::RADIUS).filled(true).build();
     }
-    let fg = if hovered { color::FG } else { color::FG2 };
+    let fg = fade(if hovered { color::FG } else { color::FG2 }, al);
     let c = [(p[0] + s / 2.0).round(), (p[1] + s / 2.0).round()];
     let r = 5.0;
     match which {
@@ -784,7 +804,7 @@ pub fn banner(ui: &Ui, f: &Fonts, kind: TagKind, text: &str, action: Option<&str
             ui.text_colored(fg, text);
             if let Some(a) = action {
                 ui.same_line();
-                let w = ui.calc_text_size(a)[0] + 20.0;
+                let w = button_small_width(ui, f, a);
                 grid::right_align(ui, &[w]);
                 let y = ui.cursor_pos()[1] - ((size::CONTROL - ui.text_line_height()) / 2.0).round();
                 ui.set_cursor_pos([ui.cursor_pos()[0], y + (size::CONTROL - size::SMALL) / 2.0]);

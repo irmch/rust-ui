@@ -246,14 +246,8 @@ impl LaunchScreen {
 
     fn log_pane(&mut self, ui: &Ui, f: &Fonts) -> Option<LaunchEvent> {
         let mut ev = None;
-        let copy_w = {
-            let _f = ui.push_font(f.mono12);
-            ui.calc_text_size("Copy")[0] + 20.0
-        };
-        let save_w = {
-            let _f = ui.push_font(f.mono12);
-            ui.calc_text_size("Save")[0] + 20.0
-        };
+        let copy_w = w::button_small_width(ui, f, "Copy");
+        let save_w = w::button_small_width(ui, f, "Save");
         w::panel_header(ui, f, "Status", &[copy_w, save_w], |ui| {
             if w::button_small(ui, f, ButtonKind::Secondary, "Copy") {
                 ev = Some(LaunchEvent::CopyLog);

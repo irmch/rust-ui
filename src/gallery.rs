@@ -109,7 +109,7 @@ impl Gallery {
 
         w::section(ui, f, "Cards · 3 × span 4");
         let switches = &mut self.switches;
-        let events = &mut self.events;
+        let mut clicked: Vec<String> = Vec::new();
         grid.row(ui, "cards", &[4, 4, 4], |ui, i, width| {
             let (mail, status, kind, proxy) = ACCOUNTS[i];
             w::card(ui, &format!("##card{i}"), [width, CARD_H], |ui| {
@@ -120,14 +120,17 @@ impl Gallery {
                 let on = &mut switches[i % 4];
                 w::switch(ui, f, "Auto-restart", on);
                 if w::button_small(ui, f, ButtonKind::Secondary, "Open") {
-                    events.push(format!("open {mail}"));
+                    clicked.push(format!("open {mail}"));
                 }
                 ui.same_line();
                 if w::button_small(ui, f, ButtonKind::Danger, "Remove") {
-                    events.push(format!("remove {mail}"));
+                    clicked.push(format!("remove {mail}"));
                 }
             });
         });
+        for e in clicked {
+            self.note(e);
+        }
 
         grid::section_gap(ui);
 
@@ -386,11 +389,15 @@ impl Gallery {
         ui.dummy([0.0, space::M]);
         w::caption(ui, f, "Small · 24 px");
         ui.dummy([0.0, space::XS]);
-        for (i, (kind, label)) in kinds.into_iter().enumerate() {
-            if i > 0 {
-                ui.same_line_with_spacing(0.0, space::S);
+        {
+            // same labels as the 32 px row: own ID scope, or the pairs share state
+            let _id = ui.push_id("small");
+            for (i, (kind, label)) in kinds.into_iter().enumerate() {
+                if i > 0 {
+                    ui.same_line_with_spacing(0.0, space::S);
+                }
+                w::button_small(ui, f, kind, label);
             }
-            w::button_small(ui, f, kind, label);
         }
 
         ui.dummy([0.0, space::M]);
@@ -417,6 +424,7 @@ impl Gallery {
         w::caption(ui, f, "Disabled");
         ui.dummy([0.0, space::XS]);
         w::disabled(ui, true, || {
+            let _id = ui.push_id("disabled");
             for (i, (kind, label)) in kinds.into_iter().enumerate() {
                 if i > 0 {
                     ui.same_line_with_spacing(0.0, space::S);
@@ -558,7 +566,7 @@ impl Gallery {
         grid::section_gap(ui);
 
         w::section(ui, f, "Panel header + panel");
-        w::panel_header(ui, f, "Events", &[grid::button_width(ui, "Clear") - 8.0], |ui| {
+        w::panel_header(ui, f, "Events", &[w::button_small_width(ui, f, "Clear")], |ui| {
             if w::button_small(ui, f, ButtonKind::Secondary, "Clear") {
                 self.events.clear();
             }

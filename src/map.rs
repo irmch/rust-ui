@@ -120,14 +120,29 @@ impl TileGrid {
 
     /// Tiles the view asked for since the last call; they become `Loading`.
     pub fn take_pending(&mut self) -> Vec<[i32; 2]> {
+        self.take_pending_limit(usize::MAX)
+    }
+
+    /// Like [`TileGrid::take_pending`] but at most `max` tiles, so a host
+    /// that decodes synchronously can spread the work over frames; the rest
+    /// stay pending and are returned by later calls.
+    pub fn take_pending_limit(&mut self, max: usize) -> Vec<[i32; 2]> {
         let mut out = Vec::new();
         for (k, v) in &mut self.tiles {
+            if out.len() >= max {
+                break;
+            }
             if *v == TileState::Pending {
                 *v = TileState::Loading;
                 out.push(*k);
             }
         }
         out
+    }
+
+    /// Tiles still waiting for [`TileGrid::take_pending`].
+    pub fn pending_count(&self) -> usize {
+        self.tiles.values().filter(|v| **v == TileState::Pending).count()
     }
 
     pub fn set(&mut self, tile: [i32; 2], texture: TextureId) {
@@ -208,6 +223,9 @@ pub struct Canvas<'ui> {
     pub zoom: f32,
     /// World position under the mouse while it is over the view.
     pub mouse_world: Option<[f32; 2]>,
+    /// `style.alpha` at draw time, applied to every colour (page fades,
+    /// `disabled()`); the draw list does not do it by itself.
+    pub alpha: f32,
 }
 
 fn world_to_screen(origin: [f32; 2], size: [f32; 2], center: [f32; 2], zoom: f32, w: [f32; 2]) -> [f32; 2] {
@@ -225,6 +243,11 @@ fn screen_to_world(origin: [f32; 2], size: [f32; 2], center: [f32; 2], zoom: f32
 }
 
 impl<'ui> Canvas<'ui> {
+    /// `c` with the view's current alpha applied.
+    pub fn c(&self, c: Rgba) -> Rgba {
+        [c[0], c[1], c[2], c[3] * self.alpha]
+    }
+
     /// World → screen.
     pub fn to_screen(&self, w: [f32; 2]) -> [f32; 2] {
         world_to_screen(self.origin, self.size, self.center, self.zoom, w)
@@ -260,7 +283,7 @@ impl<'ui> Canvas<'ui> {
     }
 
     pub fn line(&self, a: [f32; 2], b: [f32; 2], col: Rgba, thickness: f32) {
-        self.dl.add_line(self.to_screen(a), self.to_screen(b), col).thickness(thickness).build();
+        self.dl.add_line(self.to_screen(a), self.to_screen(b), self.c(col)).thickness(thickness).build();
     }
 
     pub fn polyline(&self, points: &[[f32; 2]], col: Rgba, thickness: f32) {
@@ -268,43 +291,43 @@ impl<'ui> Canvas<'ui> {
             return;
         }
         let pts: Vec<[f32; 2]> = points.iter().map(|p| self.to_screen(*p)).collect();
-        self.dl.add_polyline(pts, col).thickness(thickness).build();
+        self.dl.add_polyline(pts, self.c(col)).thickness(thickness).build();
     }
 
     pub fn rect(&self, a: [f32; 2], b: [f32; 2], col: Rgba, thickness: f32) {
-        self.dl.add_rect(self.to_screen(a), self.to_screen(b), col).thickness(thickness).build();
+        self.dl.add_rect(self.to_screen(a), self.to_screen(b), self.c(col)).thickness(thickness).build();
     }
 
     pub fn rect_filled(&self, a: [f32; 2], b: [f32; 2], col: Rgba) {
-        self.dl.add_rect(self.to_screen(a), self.to_screen(b), col).filled(true).build();
+        self.dl.add_rect(self.to_screen(a), self.to_screen(b), self.c(col)).filled(true).build();
     }
 
     /// Circle of `radius_px` pixels around world point `c`.
     pub fn circle(&self, c: [f32; 2], radius_px: f32, col: Rgba, thickness: f32) {
-        self.dl.add_circle(self.to_screen(c), radius_px, col).thickness(thickness).build();
+        self.dl.add_circle(self.to_screen(c), radius_px, self.c(col)).thickness(thickness).build();
     }
 
     pub fn circle_filled(&self, c: [f32; 2], radius_px: f32, col: Rgba) {
-        self.dl.add_circle(self.to_screen(c), radius_px, col).filled(true).build();
+        self.dl.add_circle(self.to_screen(c), radius_px, self.c(col)).filled(true).build();
     }
 
     /// Circle whose radius is in world units (a sight range, an aggro radius).
     pub fn circle_world(&self, c: [f32; 2], radius: f32, col: Rgba, thickness: f32) {
         let r = self.px(radius);
         let segs = (r / 2.0).clamp(12.0, 128.0) as u32;
-        self.dl.add_circle(self.to_screen(c), r, col).thickness(thickness).num_segments(segs).build();
+        self.dl.add_circle(self.to_screen(c), r, self.c(col)).thickness(thickness).num_segments(segs).build();
     }
 
     pub fn circle_world_filled(&self, c: [f32; 2], radius: f32, col: Rgba) {
         let r = self.px(radius);
         let segs = (r / 2.0).clamp(12.0, 128.0) as u32;
-        self.dl.add_circle(self.to_screen(c), r, col).filled(true).num_segments(segs).build();
+        self.dl.add_circle(self.to_screen(c), r, self.c(col)).filled(true).num_segments(segs).build();
     }
 
     /// Text with its top-left corner at world point `w`, offset by `off` pixels.
     pub fn text(&self, w: [f32; 2], off: [f32; 2], col: Rgba, s: &str) {
         let p = self.to_screen(w);
-        self.dl.add_text([p[0] + off[0], p[1] + off[1]], col, s);
+        self.dl.add_text([p[0] + off[0], p[1] + off[1]], self.c(col), s);
     }
 
     /// Text on a dark box, centred `above_px` pixels above world point `w`.
@@ -313,15 +336,15 @@ impl<'ui> Canvas<'ui> {
         let ts = ui.calc_text_size(s);
         let a = [(p[0] - ts[0] / 2.0 - space::XS).round(), (p[1] - above_px - ts[1] - space::XS).round()];
         let b = [a[0] + ts[0] + 2.0 * space::XS, a[1] + ts[1] + 2.0 * space::XS];
-        self.dl.add_rect(a, b, color::DIM).rounding(size::RADIUS).filled(true).build();
-        self.dl.add_text([a[0] + space::XS, a[1] + space::XS], col, s);
+        self.dl.add_rect(a, b, self.c(color::DIM)).rounding(size::RADIUS).filled(true).build();
+        self.dl.add_text([a[0] + space::XS, a[1] + space::XS], self.c(col), s);
     }
 
     /// Filled dot with a dark outline: entities, waypoints.
     pub fn marker(&self, w: [f32; 2], col: Rgba, radius_px: f32) {
         let p = self.to_screen(w);
-        self.dl.add_circle(p, radius_px + 1.5, color::BG0).filled(true).build();
-        self.dl.add_circle(p, radius_px, col).filled(true).build();
+        self.dl.add_circle(p, radius_px + 1.5, self.c(color::BG0)).filled(true).build();
+        self.dl.add_circle(p, radius_px, self.c(col)).filled(true).build();
     }
 
     /// Arrow head at `w` pointing along `heading` radians (0 = +x, π/2 = +y).
@@ -333,13 +356,13 @@ impl<'ui> Canvas<'ui> {
         let wing = len_px * 0.45;
         let l = [p[0] - c * back - s * wing, p[1] - s * back + c * wing];
         let r = [p[0] - c * back + s * wing, p[1] - s * back - c * wing];
-        self.dl.add_triangle(tip, l, r, color::BG0).thickness(3.0).build();
-        self.dl.add_triangle(tip, l, r, col).filled(true).build();
+        self.dl.add_triangle(tip, l, r, self.c(color::BG0)).thickness(3.0).build();
+        self.dl.add_triangle(tip, l, r, self.c(col)).filled(true).build();
     }
 
     /// Image covering the world rect `a..b`.
     pub fn image(&self, tex: TextureId, a: [f32; 2], b: [f32; 2]) {
-        self.dl.add_image(tex, self.to_screen(a), self.to_screen(b)).build();
+        self.dl.add_image(tex, self.to_screen(a), self.to_screen(b)).col(self.c([1.0, 1.0, 1.0, 1.0])).build();
     }
 
     /// Fills the visible cells of a grid of `cell` world units anchored at
@@ -384,11 +407,11 @@ impl<'ui> Canvas<'ui> {
         let right = self.origin[0] + self.size[0];
         for x in x0..=x1 {
             let sx = self.to_screen([origin[0] + x as f32 * step, 0.0])[0].round() + 0.5;
-            self.dl.add_line([sx, top], [sx, bottom], col).build();
+            self.dl.add_line([sx, top], [sx, bottom], self.c(col)).build();
         }
         for y in y0..=y1 {
             let sy = self.to_screen([0.0, origin[1] + y as f32 * step])[1].round() + 0.5;
-            self.dl.add_line([left, sy], [right, sy], col).build();
+            self.dl.add_line([left, sy], [right, sy], self.c(col)).build();
         }
         true
     }
@@ -413,15 +436,15 @@ impl<'ui> Canvas<'ui> {
                 let state = tiles.tile([ix, iy]);
                 match state {
                     Tile::Ready(t) => {
-                        self.dl.add_image(t, a, b).build();
+                        self.dl.add_image(t, a, b).col(self.c([1.0, 1.0, 1.0, 1.0])).build();
                     }
                     Tile::Loading => {
-                        self.dl.add_rect(a, b, color::BG1).filled(true).build();
+                        self.dl.add_rect(a, b, self.c(color::BG1)).filled(true).build();
                     }
                     Tile::Missing => {}
                 }
                 if grid || state == Tile::Loading {
-                    self.dl.add_rect(a, b, color::LINE2).build();
+                    self.dl.add_rect(a, b, self.c(color::LINE2)).build();
                 }
                 if (labels || state == Tile::Loading) && px[0] >= 48.0 && px[1] >= 24.0 {
                     let s = if state == Tile::Loading {
@@ -430,7 +453,7 @@ impl<'ui> Canvas<'ui> {
                         tiles.label([ix, iy])
                     };
                     let _ = ui;
-                    self.dl.add_text([a[0] + space::XS, a[1] + space::XS], color::FG3, s);
+                    self.dl.add_text([a[0] + space::XS, a[1] + space::XS], self.c(color::FG3), s);
                 }
             }
         }
@@ -445,8 +468,8 @@ impl<'ui> Canvas<'ui> {
         let ts = ui.calc_text_size(&text);
         let a = [self.origin[0] + space::S, self.origin[1] + self.size[1] - ts[1] - 2.0 * space::XS - space::S];
         let b = [a[0] + ts[0] + 2.0 * space::XS, a[1] + ts[1] + 2.0 * space::XS];
-        self.dl.add_rect(a, b, color::DIM).rounding(size::RADIUS).filled(true).build();
-        self.dl.add_text([a[0] + space::XS, a[1] + space::XS], color::FG2, text);
+        self.dl.add_rect(a, b, self.c(color::DIM)).rounding(size::RADIUS).filled(true).build();
+        self.dl.add_text([a[0] + space::XS, a[1] + space::XS], self.c(color::FG2), text);
     }
 }
 
@@ -599,6 +622,7 @@ impl MapView {
                     center: self.center,
                     zoom: self.zoom,
                     mouse_world: hovered.then(|| screen_to_world(origin, sz, self.center, self.zoom, mouse)),
+                    alpha: crate::widgets::style_alpha(ui),
                 };
                 resp.hovered = hovered;
                 resp.mouse_world = canvas.mouse_world;

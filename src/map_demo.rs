@@ -354,50 +354,48 @@ impl MapPage {
         let waypoint = self.waypoint;
         let trail = &self.trail;
         let resp = self.view.show(ui, "##l2map", [0.0, 0.0], &mut self.tiles, Some(player), |c| {
-            // 1. geodata: cells when close, one sample per block when far
-            if show_geo {
-                let drew = c.cells([0.0, 0.0], l2::CELL, 6.0, |cx, cy| {
-                    let g = geo_cell(cx, cy);
-                    Some(if g.nswe == 0 { WALL_FILL } else { tint(height_color(g.height), 0.55) })
-                });
-                if !drew {
-                    c.cells([0.0, 0.0], l2::BLOCK, 3.0, |bx, by| {
-                        if is_building(bx, by) {
-                            Some(WALL_FILL)
-                        } else {
-                            let g = geo_cell(bx * 8 + 4, by * 8 + 4);
-                            Some(tint(height_color(g.height), 0.35))
-                        }
-                    });
-                }
-            }
-            // 2. walls: the blocked sides of each visible cell
-            if show_walls && c.px(l2::CELL) >= 8.0 {
+            // 1 + 2. geodata and walls: one geo_cell per visible cell for
+            // both when cells are readable, one height sample per block when
+            // far (no neighbour lookups, nothing is drawn per cell then).
+            let cell_px = c.px(l2::CELL);
+            if cell_px >= 6.0 && (show_geo || show_walls) {
+                let walls = show_walls && cell_px >= 8.0;
                 let (min, max) = c.world_rect();
                 let (x0, x1) = ((min[0] / l2::CELL).floor() as i32, (max[0] / l2::CELL).floor() as i32);
                 let (y0, y1) = ((min[1] / l2::CELL).floor() as i32, (max[1] / l2::CELL).floor() as i32);
                 for cy in y0..=y1 {
                     for cx in x0..=x1 {
                         let g = geo_cell(cx, cy);
-                        if g.nswe == 0b1111 {
-                            continue;
-                        }
                         let a = [cx as f32 * l2::CELL, cy as f32 * l2::CELL];
                         let b = [a[0] + l2::CELL, a[1] + l2::CELL];
-                        if g.nswe & N == 0 {
-                            c.line(a, [b[0], a[1]], color::WARN, 1.0);
+                        if show_geo {
+                            c.rect_filled(a, b, if g.nswe == 0 { WALL_FILL } else { tint(height_color(g.height), 0.55) });
                         }
-                        if g.nswe & S == 0 {
-                            c.line([a[0], b[1]], b, color::WARN, 1.0);
-                        }
-                        if g.nswe & W == 0 {
-                            c.line(a, [a[0], b[1]], color::WARN, 1.0);
-                        }
-                        if g.nswe & E == 0 {
-                            c.line([b[0], a[1]], b, color::WARN, 1.0);
+                        if walls && g.nswe != 0b1111 {
+                            if g.nswe & N == 0 {
+                                c.line(a, [b[0], a[1]], color::WARN, 1.0);
+                            }
+                            if g.nswe & S == 0 {
+                                c.line([a[0], b[1]], b, color::WARN, 1.0);
+                            }
+                            if g.nswe & W == 0 {
+                                c.line(a, [a[0], b[1]], color::WARN, 1.0);
+                            }
+                            if g.nswe & E == 0 {
+                                c.line([b[0], a[1]], b, color::WARN, 1.0);
+                            }
                         }
                     }
                 }
+            } else if show_geo {
+                c.cells([0.0, 0.0], l2::BLOCK, 3.0, |bx, by| {
+                    if is_building(bx, by) {
+                        Some(WALL_FILL)
+                    } else {
+                        let h = terrain_height(bx as f32 * l2::BLOCK + 64.0, by as f32 * l2::BLOCK + 64.0);
+                        Some(tint(height_color(h), 0.35))
+                    }
+                });
             }
             // 3. block grid
             if show_blocks {
