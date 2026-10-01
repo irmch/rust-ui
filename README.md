@@ -15,6 +15,7 @@ The design source is the canvas **ImGui Rust UI Kit**
 | 05 Data & feedback | `widgets` | log line, stat, status dot |
 | 06 Reference screen | `demo::LaunchScreen` | the Launch screen built from the above |
 | all of the above | `gallery::Gallery` | every widget in every state on the Accounts … Settings tabs of the demo |
+| — | `anim` | toggle, tab and page animations; `anim::set` / `anim::set_enabled` switch them off |
 
 ## Usage
 
@@ -79,3 +80,8 @@ The other tabs (Accounts, Instances, Proxies, Resources, Tools, Settings) show
 the widget gallery: cards, tags, status dots, a table, progress bars, inputs,
 radios, switches, checkboxes, the disabled state, stats, sliders, every button
 variant, banners, grid and form rows, text styles, panel header and panel.
+
+Checkbox, radio and switch toggles, the active-tab highlight and the page
+change are animated (140 / 50 / 220 ms). The *Animation* section at the top of
+the Settings tab turns each one off and scales the durations; in code use
+`anim::set(anim::Settings { .. })` or `anim::set_enabled(false)`.

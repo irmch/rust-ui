@@ -3,6 +3,7 @@
 
 use imgui::{Condition, StyleVar, Ui, WindowFlags};
 
+use crate::anim;
 use crate::fonts::Fonts;
 use crate::gallery::Gallery;
 use crate::grid::{self, Grid, Pane};
@@ -27,6 +28,10 @@ pub struct LaunchScreen {
     pub status: &'static str,
     /// State of the widget gallery on the other tabs.
     pub gallery: Gallery,
+    /// Tab currently shown by the page transition, its progress and direction.
+    page_tab: usize,
+    page_t: f32,
+    page_dir: f32,
 }
 
 impl Default for LaunchScreen {
@@ -52,6 +57,9 @@ impl Default for LaunchScreen {
             ],
             status: "Ready",
             gallery: Gallery::default(),
+            page_tab: 0,
+            page_t: 1.0,
+            page_dir: 1.0,
         }
     }
 }
@@ -103,6 +111,21 @@ impl LaunchScreen {
             ev = LaunchEvent::Window(act);
         }
 
+        // page transition: restart on tab change, advance while enabled
+        if self.tab != self.page_tab {
+            self.page_dir = if self.tab > self.page_tab { 1.0 } else { -1.0 };
+            self.page_tab = self.tab;
+            self.page_t = 0.0;
+        }
+        let st = anim::settings();
+        self.page_t = if st.pages {
+            let d = (anim::PAGE * st.scale).max(1e-3);
+            (self.page_t + ui.io().delta_time.min(0.1) / d).min(1.0)
+        } else {
+            1.0
+        };
+        let page = anim::ease_out(self.page_t);
+
         // 2. status strip ------------------------------------------------
         let windows = format!("{}", self.windows as i32);
         let stagger = format!("{}", self.stagger_ms as i32);
@@ -133,11 +156,16 @@ impl LaunchScreen {
 
         // 3. content ---------------------------------------------------------
         let _pad = ui.push_style_var(StyleVar::WindowPadding([space::XL, space::XL]));
+        // fade + 24 px slide in the direction of the tab change
+        let _alpha = ui.push_style_var(StyleVar::Alpha(page));
+        let content_w = ui.content_region_avail()[0];
+        let [cx, cy] = ui.cursor_pos();
+        ui.set_cursor_pos([cx + (1.0 - page) * 24.0 * self.page_dir, cy]);
         if self.tab == 0 {
             // Launch: 5 / 7 panes on the 12-column grid
             let grid = Grid::default();
             ui.child_window("##content")
-                .size([0.0, 0.0])
+                .size([content_w, 0.0])
                 .flags(WindowFlags::ALWAYS_USE_WINDOW_PADDING | WindowFlags::NO_SCROLLBAR)
                 .build(|| {
                     let span = Grid::form_span(width);
@@ -155,7 +183,7 @@ impl LaunchScreen {
             // Other tabs: the scrolling widget gallery
             let tab = self.tab;
             ui.child_window("##gallery")
-                .size([0.0, 0.0])
+                .size([content_w, 0.0])
                 .flags(WindowFlags::ALWAYS_USE_WINDOW_PADDING)
                 .build(|| self.gallery.draw(ui, f, tab));
         }

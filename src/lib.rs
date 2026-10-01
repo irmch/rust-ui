@@ -30,7 +30,9 @@
 //! - [`widgets`]: checkboxes, switches, sliders, tags, bars, panels (artboards 03–05).
 //! - [`demo`]: the reference Launch screen (artboard 06).
 //! - [`gallery`]: every widget in every state, shown on the other tabs of the demo.
+//! - [`anim`]: toggle / tab / page animations and the switches to turn them off.
 
+pub mod anim;
 pub mod demo;
 pub mod fonts;
 pub mod gallery;

@@ -4,6 +4,7 @@
 
 use imgui::{MouseButton, StyleColor, StyleVar, Ui, WindowFlags};
 
+use crate::anim;
 use crate::fonts::Fonts;
 use crate::grid;
 use crate::theme::ButtonKind;
@@ -173,14 +174,14 @@ fn check_like(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, value: &mut b
         *value = true;
     }
     let hovered = ui.is_item_hovered();
+    // 0 = off, 1 = on; eases over anim::CONTROL seconds when enabled.
+    let t = anim::toggle(ui, anim::key(ui, "##box"), *value, anim::CONTROL);
     let dl = ui.get_window_draw_list();
     let by = p[1] + ((row_h - b) / 2.0).round();
-    let (bg, border) = match (*value, round, hovered) {
-        (true, false, _) => (color::ACCENT, color::ACCENT),
-        (true, true, _) => (color::BG1, color::ACCENT),
-        (false, _, true) => (color::BG3, color::LINE2),
-        (false, _, false) => (color::BG1, color::LINE2),
-    };
+    let off_bg = if hovered { color::BG3 } else { color::BG1 };
+    let on_bg = if round { color::BG1 } else { color::ACCENT };
+    let bg = anim::mix(off_bg, on_bg, t);
+    let border = anim::mix(color::LINE2, color::ACCENT, t);
     let rounding = if round { b / 2.0 } else { size::RADIUS };
     dl.add_rect([p[0], by], [p[0] + b, by + b], bg)
         .rounding(rounding)
@@ -189,19 +190,16 @@ fn check_like(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, value: &mut b
     dl.add_rect([p[0], by], [p[0] + b, by + b], border)
         .rounding(rounding)
         .build();
-    if *value {
+    if t > 0.0 {
+        let c = [p[0] + b / 2.0, by + b / 2.0];
         if round {
-            dl.add_circle([p[0] + b / 2.0, by + b / 2.0], 4.0, color::ACCENT)
-                .filled(true)
-                .build();
+            dl.add_circle(c, 4.0 * t, color::ACCENT).filled(true).build();
         } else {
-            let q = |x: f32, y: f32| [p[0] + x, by + y];
-            dl.add_line(q(4.0, 9.5), q(7.5, 13.0), color::BG0)
-                .thickness(1.6)
-                .build();
-            dl.add_line(q(7.5, 13.0), q(14.0, 5.0), color::BG0)
-                .thickness(1.6)
-                .build();
+            // the mark grows from the centre of the box
+            let q = |x: f32, y: f32| [c[0] + (p[0] + x - c[0]) * t, c[1] + (by + y - c[1]) * t];
+            let ink = [color::BG0[0], color::BG0[1], color::BG0[2], t];
+            dl.add_line(q(4.0, 9.5), q(7.5, 13.0), ink).thickness(1.6).build();
+            dl.add_line(q(7.5, 13.0), q(14.0, 5.0), ink).thickness(1.6).build();
         }
     }
     let mut x = p[0] + b + space::M;
@@ -233,13 +231,13 @@ pub fn switch(ui: &Ui, f: &Fonts, label: &str, value: &mut bool) -> bool {
     if clicked {
         *value = !*value;
     }
+    let t = anim::toggle(ui, anim::key(ui, "##sw"), *value, anim::CONTROL);
     let dl = ui.get_window_draw_list();
     let y = p[1] + ((row_h - sh) / 2.0).round();
-    let (bg, border, knob, kx) = if *value {
-        (color::ACCENT, color::ACCENT, color::BG0, p[0] + sw - sh / 2.0)
-    } else {
-        (color::BG4, color::LINE2, color::FG3, p[0] + sh / 2.0)
-    };
+    let bg = anim::mix(color::BG4, color::ACCENT, t);
+    let border = anim::mix(color::LINE2, color::ACCENT, t);
+    let knob = anim::mix(color::FG3, color::BG0, t);
+    let kx = p[0] + sh / 2.0 + (sw - sh) * t;
     dl.add_rect([p[0], y], [p[0] + sw, y + sh], bg)
         .rounding(sh / 2.0)
         .filled(true)
@@ -558,12 +556,36 @@ pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], acti
             let tab_w: Vec<f32> = tabs.iter().map(|t| ui.calc_text_size(t)[0] + 2.0 * size::PAD_X).collect();
             let total: f32 = tab_w.iter().sum::<f32>() + space::XS * (tabs.len().saturating_sub(1)) as f32;
             let avail = ui.window_size()[0];
-            ui.set_cursor_pos([((avail - total) / 2.0).round(), (size::BAR - size::CONTROL) / 2.0]);
+            let tabs_x = ((avail - total) / 2.0).round();
+            let tabs_y = (size::BAR - size::CONTROL) / 2.0;
+            let slide = anim::settings().tabs;
+            if slide {
+                // One highlight rect that eases from the old tab to the new one;
+                // the tab buttons then draw no background of their own.
+                let (mut x, mut hl_x, mut hl_w) = (tabs_x, tabs_x, tab_w.first().copied().unwrap_or(0.0));
+                for (i, w) in tab_w.iter().enumerate() {
+                    if i == *active {
+                        hl_x = x;
+                        hl_w = *w;
+                    }
+                    x += w + space::XS;
+                }
+                let hx = anim::approach(ui, anim::key(ui, "##tabs_hl_x"), hl_x, anim::TABS, true);
+                let hw = anim::approach(ui, anim::key(ui, "##tabs_hl_w"), hl_w, anim::TABS, true);
+                let wp = ui.window_pos();
+                let a = [wp[0] + hx, wp[1] + tabs_y];
+                ui.get_window_draw_list()
+                    .add_rect(a, [a[0] + hw, a[1] + size::CONTROL], color::BG3)
+                    .rounding(size::RADIUS)
+                    .filled(true)
+                    .build();
+            }
+            ui.set_cursor_pos([tabs_x, tabs_y]);
             for (i, (t, w)) in tabs.iter().zip(&tab_w).enumerate() {
                 if i > 0 {
                     ui.same_line_with_spacing(0.0, space::XS);
                 }
-                if tab(ui, f, t, *w, i == *active) {
+                if tab_ex(ui, f, t, *w, i == *active, !slide) {
                     *active = i;
                 }
             }
@@ -623,8 +645,15 @@ pub fn window_control(ui: &Ui, which: TitleBarAction) -> bool {
 
 /// One tab of the title bar: 32 px, bg-3 + bold when active, fg-2 otherwise.
 pub fn tab(ui: &Ui, f: &Fonts, label: &str, width: f32, active: bool) -> bool {
+    tab_ex(ui, f, label, width, active, true)
+}
+
+/// [`tab`] with `own_bg = false` when the caller draws the active highlight
+/// itself (the title bar's sliding one).
+fn tab_ex(ui: &Ui, f: &Fonts, label: &str, width: f32, active: bool, own_bg: bool) -> bool {
     let _f = ui.push_font(if active { f.mono13b } else { f.mono13 });
-    let (bg, fg) = if active { (color::BG3, color::FG) } else { (color::TRANSPARENT, color::FG2) };
+    let bg = if active && own_bg { color::BG3 } else { color::TRANSPARENT };
+    let fg = if active { color::FG } else { color::FG2 };
     let _c = [
         ui.push_style_color(StyleColor::Button, bg),
         ui.push_style_color(StyleColor::ButtonHovered, color::BG2),

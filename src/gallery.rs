@@ -6,6 +6,7 @@
 
 use imgui::{StyleVar, TableFlags, TableRowFlags, Ui};
 
+use crate::anim;
 use crate::fonts::Fonts;
 use crate::grid::{self, Grid};
 use crate::theme::ButtonKind;
@@ -445,6 +446,22 @@ impl Gallery {
     // 6 · Settings: grid rows, form rows, text styles, panels ------------------
     fn settings(&mut self, ui: &Ui, f: &Fonts) {
         let grid = Grid::default();
+
+        w::section(ui, f, "Animation");
+        {
+            let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
+            let mut st = anim::settings();
+            let mut changed = false;
+            changed |= w::switch(ui, f, "Controls: checkbox, radio, switch", &mut st.controls);
+            changed |= w::switch(ui, f, "Tabs: sliding highlight", &mut st.tabs);
+            changed |= w::switch(ui, f, "Pages: fade and slide on tab change", &mut st.pages);
+            changed |= w::labeled_slider(ui, f, "Scale", &mut st.scale, 0.25, 4.0, 0.25, "×");
+            if changed {
+                anim::set(st);
+            }
+        }
+
+        grid::section_gap(ui);
 
         w::section(ui, f, "Grid row · spans 3 / 3 / 6");
         grid.row(ui, "spans", &[3, 3, 6], |ui, i, width| {
