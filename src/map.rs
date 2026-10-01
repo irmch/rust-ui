@@ -35,7 +35,7 @@ use std::collections::HashMap;
 
 use imgui::{DrawListMut, MouseButton, StyleColor, StyleVar, TextureId, Ui, WindowFlags};
 
-use crate::tokens::{color, size, space, Rgba};
+use crate::tokens::{Rgba, color, size, space};
 
 // ---------------------------------------------------------------------------
 // Tiles
@@ -127,7 +127,9 @@ impl TileGrid {
 
     pub fn in_bounds(&self, tile: [i32; 2]) -> bool {
         match self.bounds {
-            Some([min, max]) => tile[0] >= min[0] && tile[0] <= max[0] && tile[1] >= min[1] && tile[1] <= max[1],
+            Some([min, max]) => {
+                tile[0] >= min[0] && tile[0] <= max[0] && tile[1] >= min[1] && tile[1] <= max[1]
+            }
             None => true,
         }
     }
@@ -156,12 +158,18 @@ impl TileGrid {
 
     /// Tiles still waiting for [`TileGrid::take_pending`].
     pub fn pending_count(&self) -> usize {
-        self.tiles.values().filter(|v| v.state == TileState::Pending).count()
+        self.tiles
+            .values()
+            .filter(|v| v.state == TileState::Pending)
+            .count()
     }
 
     fn put(&mut self, tile: [i32; 2], state: TileState) {
         let seen = self.frame;
-        self.tiles.entry(tile).and_modify(|s| s.state = state).or_insert(Slot { state, seen });
+        self.tiles
+            .entry(tile)
+            .and_modify(|s| s.state = state)
+            .or_insert(Slot { state, seen });
     }
 
     pub fn set(&mut self, tile: [i32; 2], texture: TextureId) {
@@ -173,7 +181,9 @@ impl TileGrid {
     }
 
     pub fn state(&self, tile: [i32; 2]) -> TileState {
-        self.tiles.get(&tile).map_or(TileState::Pending, |s| s.state)
+        self.tiles
+            .get(&tile)
+            .map_or(TileState::Pending, |s| s.state)
     }
 
     /// Forgets a tile so the view requests it again (after the texture was
@@ -243,7 +253,10 @@ impl TileSource for TileGrid {
             return Tile::Missing;
         }
         let frame = self.frame;
-        let slot = self.tiles.entry(tile).or_insert(Slot { state: TileState::Pending, seen: frame });
+        let slot = self.tiles.entry(tile).or_insert(Slot {
+            state: TileState::Pending,
+            seen: frame,
+        });
         slot.seen = frame;
         match slot.state {
             TileState::Ready(t) => Tile::Ready(t),
@@ -265,7 +278,11 @@ pub struct Layer<'a> {
 
 impl<'a> Layer<'a> {
     pub fn new(tiles: &'a mut dyn TileSource) -> Self {
-        Self { tiles, alpha: 1.0, visible: true }
+        Self {
+            tiles,
+            alpha: 1.0,
+            visible: true,
+        }
     }
 
     pub fn alpha(mut self, alpha: f32) -> Self {
@@ -301,14 +318,26 @@ pub struct Canvas<'ui> {
     pub alpha: f32,
 }
 
-fn world_to_screen(origin: [f32; 2], size: [f32; 2], center: [f32; 2], zoom: f32, w: [f32; 2]) -> [f32; 2] {
+fn world_to_screen(
+    origin: [f32; 2],
+    size: [f32; 2],
+    center: [f32; 2],
+    zoom: f32,
+    w: [f32; 2],
+) -> [f32; 2] {
     [
         origin[0] + size[0] * 0.5 + (w[0] - center[0]) * zoom,
         origin[1] + size[1] * 0.5 + (w[1] - center[1]) * zoom,
     ]
 }
 
-fn screen_to_world(origin: [f32; 2], size: [f32; 2], center: [f32; 2], zoom: f32, s: [f32; 2]) -> [f32; 2] {
+fn screen_to_world(
+    origin: [f32; 2],
+    size: [f32; 2],
+    center: [f32; 2],
+    zoom: f32,
+    s: [f32; 2],
+) -> [f32; 2] {
     [
         center[0] + (s[0] - origin[0] - size[0] * 0.5) / zoom,
         center[1] + (s[1] - origin[1] - size[1] * 0.5) / zoom,
@@ -347,7 +376,10 @@ impl<'ui> Canvas<'ui> {
     /// Whether the world rect `a..b` intersects the view.
     pub fn is_visible(&self, a: [f32; 2], b: [f32; 2]) -> bool {
         let (min, max) = self.world_rect();
-        a[0].min(b[0]) <= max[0] && a[0].max(b[0]) >= min[0] && a[1].min(b[1]) <= max[1] && a[1].max(b[1]) >= min[1]
+        a[0].min(b[0]) <= max[0]
+            && a[0].max(b[0]) >= min[0]
+            && a[1].min(b[1]) <= max[1]
+            && a[1].max(b[1]) >= min[1]
     }
 
     /// The raw draw list, already clipped to the view.
@@ -356,7 +388,10 @@ impl<'ui> Canvas<'ui> {
     }
 
     pub fn line(&self, a: [f32; 2], b: [f32; 2], col: Rgba, thickness: f32) {
-        self.dl.add_line(self.to_screen(a), self.to_screen(b), self.c(col)).thickness(thickness).build();
+        self.dl
+            .add_line(self.to_screen(a), self.to_screen(b), self.c(col))
+            .thickness(thickness)
+            .build();
     }
 
     pub fn polyline(&self, points: &[[f32; 2]], col: Rgba, thickness: f32) {
@@ -364,60 +399,101 @@ impl<'ui> Canvas<'ui> {
             return;
         }
         let pts: Vec<[f32; 2]> = points.iter().map(|p| self.to_screen(*p)).collect();
-        self.dl.add_polyline(pts, self.c(col)).thickness(thickness).build();
+        self.dl
+            .add_polyline(pts, self.c(col))
+            .thickness(thickness)
+            .build();
     }
 
     pub fn rect(&self, a: [f32; 2], b: [f32; 2], col: Rgba, thickness: f32) {
-        self.dl.add_rect(self.to_screen(a), self.to_screen(b), self.c(col)).thickness(thickness).build();
+        self.dl
+            .add_rect(self.to_screen(a), self.to_screen(b), self.c(col))
+            .thickness(thickness)
+            .build();
     }
 
     pub fn rect_filled(&self, a: [f32; 2], b: [f32; 2], col: Rgba) {
-        self.dl.add_rect(self.to_screen(a), self.to_screen(b), self.c(col)).filled(true).build();
+        self.dl
+            .add_rect(self.to_screen(a), self.to_screen(b), self.c(col))
+            .filled(true)
+            .build();
     }
 
     /// Circle of `radius_px` pixels around world point `c`.
     pub fn circle(&self, c: [f32; 2], radius_px: f32, col: Rgba, thickness: f32) {
-        self.dl.add_circle(self.to_screen(c), radius_px, self.c(col)).thickness(thickness).build();
+        self.dl
+            .add_circle(self.to_screen(c), radius_px, self.c(col))
+            .thickness(thickness)
+            .build();
     }
 
     pub fn circle_filled(&self, c: [f32; 2], radius_px: f32, col: Rgba) {
-        self.dl.add_circle(self.to_screen(c), radius_px, self.c(col)).filled(true).build();
+        self.dl
+            .add_circle(self.to_screen(c), radius_px, self.c(col))
+            .filled(true)
+            .build();
     }
 
     /// Circle whose radius is in world units (a sight range, an aggro radius).
     pub fn circle_world(&self, c: [f32; 2], radius: f32, col: Rgba, thickness: f32) {
         let r = self.px(radius);
         let segs = (r / 2.0).clamp(12.0, 128.0) as u32;
-        self.dl.add_circle(self.to_screen(c), r, self.c(col)).thickness(thickness).num_segments(segs).build();
+        self.dl
+            .add_circle(self.to_screen(c), r, self.c(col))
+            .thickness(thickness)
+            .num_segments(segs)
+            .build();
     }
 
     pub fn circle_world_filled(&self, c: [f32; 2], radius: f32, col: Rgba) {
         let r = self.px(radius);
         let segs = (r / 2.0).clamp(12.0, 128.0) as u32;
-        self.dl.add_circle(self.to_screen(c), r, self.c(col)).filled(true).num_segments(segs).build();
+        self.dl
+            .add_circle(self.to_screen(c), r, self.c(col))
+            .filled(true)
+            .num_segments(segs)
+            .build();
     }
 
     /// Text with its top-left corner at world point `w`, offset by `off` pixels.
     pub fn text(&self, w: [f32; 2], off: [f32; 2], col: Rgba, s: &str) {
         let p = self.to_screen(w);
-        self.dl.add_text([p[0] + off[0], p[1] + off[1]], self.c(col), s);
+        self.dl
+            .add_text([p[0] + off[0], p[1] + off[1]], self.c(col), s);
     }
 
     /// Text on a dark box, centred `above_px` pixels above world point `w`.
     pub fn label(&self, ui: &Ui, w: [f32; 2], above_px: f32, col: Rgba, s: &str) {
         let p = self.to_screen(w);
         let ts = ui.calc_text_size(s);
-        let a = [(p[0] - ts[0] / 2.0 - space::XS).round(), (p[1] - above_px - ts[1] - space::XS).round()];
-        let b = [a[0] + ts[0] + 2.0 * space::XS, a[1] + ts[1] + 2.0 * space::XS];
-        self.dl.add_rect(a, b, self.c(color::DIM)).rounding(size::RADIUS).filled(true).build();
-        self.dl.add_text([a[0] + space::XS, a[1] + space::XS], self.c(col), s);
+        let a = [
+            (p[0] - ts[0] / 2.0 - space::XS).round(),
+            (p[1] - above_px - ts[1] - space::XS).round(),
+        ];
+        let b = [
+            a[0] + ts[0] + 2.0 * space::XS,
+            a[1] + ts[1] + 2.0 * space::XS,
+        ];
+        self.dl
+            .add_rect(a, b, self.c(color::DIM))
+            .rounding(size::RADIUS)
+            .filled(true)
+            .build();
+        self.dl
+            .add_text([a[0] + space::XS, a[1] + space::XS], self.c(col), s);
     }
 
     /// Filled dot with a dark outline: entities, waypoints.
     pub fn marker(&self, w: [f32; 2], col: Rgba, radius_px: f32) {
         let p = self.to_screen(w);
-        self.dl.add_circle(p, radius_px + 1.5, self.c(color::BG0)).filled(true).build();
-        self.dl.add_circle(p, radius_px, self.c(col)).filled(true).build();
+        self.dl
+            .add_circle(p, radius_px + 1.5, self.c(color::BG0))
+            .filled(true)
+            .build();
+        self.dl
+            .add_circle(p, radius_px, self.c(col))
+            .filled(true)
+            .build();
     }
 
     /// Arrow head at `w` pointing along `heading` radians (0 = +x, π/2 = +y).
@@ -429,13 +505,22 @@ impl<'ui> Canvas<'ui> {
         let wing = len_px * 0.45;
         let l = [p[0] - c * back - s * wing, p[1] - s * back + c * wing];
         let r = [p[0] - c * back + s * wing, p[1] - s * back - c * wing];
-        self.dl.add_triangle(tip, l, r, self.c(color::BG0)).thickness(3.0).build();
-        self.dl.add_triangle(tip, l, r, self.c(col)).filled(true).build();
+        self.dl
+            .add_triangle(tip, l, r, self.c(color::BG0))
+            .thickness(3.0)
+            .build();
+        self.dl
+            .add_triangle(tip, l, r, self.c(col))
+            .filled(true)
+            .build();
     }
 
     /// Image covering the world rect `a..b`.
     pub fn image(&self, tex: TextureId, a: [f32; 2], b: [f32; 2]) {
-        self.dl.add_image(tex, self.to_screen(a), self.to_screen(b)).col(self.c([1.0, 1.0, 1.0, 1.0])).build();
+        self.dl
+            .add_image(tex, self.to_screen(a), self.to_screen(b))
+            .col(self.c([1.0, 1.0, 1.0, 1.0]))
+            .build();
     }
 
     /// Fills the visible cells of a grid of `cell` world units anchored at
@@ -443,7 +528,13 @@ impl<'ui> Canvas<'ui> {
     /// is drawn when a cell would be under `min_px` pixels (too dense to
     /// read, too many rects to draw); returns whether it drew. Pair two calls
     /// with different cell sizes for level-of-detail.
-    pub fn cells(&self, origin: [f32; 2], cell: f32, min_px: f32, mut color: impl FnMut(i32, i32) -> Option<Rgba>) -> bool {
+    pub fn cells(
+        &self,
+        origin: [f32; 2],
+        cell: f32,
+        min_px: f32,
+        mut color: impl FnMut(i32, i32) -> Option<Rgba>,
+    ) -> bool {
         if self.px(cell) < min_px {
             return false;
         }
@@ -480,11 +571,15 @@ impl<'ui> Canvas<'ui> {
         let right = self.origin[0] + self.size[0];
         for x in x0..=x1 {
             let sx = self.to_screen([origin[0] + x as f32 * step, 0.0])[0].round() + 0.5;
-            self.dl.add_line([sx, top], [sx, bottom], self.c(col)).build();
+            self.dl
+                .add_line([sx, top], [sx, bottom], self.c(col))
+                .build();
         }
         for y in y0..=y1 {
             let sy = self.to_screen([0.0, origin[1] + y as f32 * step])[1].round() + 0.5;
-            self.dl.add_line([left, sy], [right, sy], self.c(col)).build();
+            self.dl
+                .add_line([left, sy], [right, sy], self.c(col))
+                .build();
         }
         true
     }
@@ -492,7 +587,15 @@ impl<'ui> Canvas<'ui> {
     /// Draws one tile layer. Placeholders and labels are drawn for the
     /// `base` layer only; overlays simply show nothing where they have no
     /// tile yet.
-    fn draw_tiles(&self, ui: &Ui, tiles: &mut dyn TileSource, alpha: f32, base: bool, grid: bool, labels: bool) {
+    fn draw_tiles(
+        &self,
+        ui: &Ui,
+        tiles: &mut dyn TileSource,
+        alpha: f32,
+        base: bool,
+        grid: bool,
+        labels: bool,
+    ) {
         let o = tiles.origin();
         let ts = tiles.tile_size();
         let (min, max) = self.world_rect();
@@ -512,10 +615,16 @@ impl<'ui> Canvas<'ui> {
                 let state = tiles.tile([ix, iy]);
                 match state {
                     Tile::Ready(t) => {
-                        self.dl.add_image(t, a, b).col(self.c([1.0, 1.0, 1.0, alpha])).build();
+                        self.dl
+                            .add_image(t, a, b)
+                            .col(self.c([1.0, 1.0, 1.0, alpha]))
+                            .build();
                     }
                     Tile::Loading if base => {
-                        self.dl.add_rect(a, b, self.c(color::BG1)).filled(true).build();
+                        self.dl
+                            .add_rect(a, b, self.c(color::BG1))
+                            .filled(true)
+                            .build();
                     }
                     Tile::Loading | Tile::Missing => {}
                 }
@@ -532,7 +641,8 @@ impl<'ui> Canvas<'ui> {
                         tiles.label([ix, iy])
                     };
                     let _ = ui;
-                    self.dl.add_text([a[0] + space::XS, a[1] + space::XS], self.c(color::FG3), s);
+                    self.dl
+                        .add_text([a[0] + space::XS, a[1] + space::XS], self.c(color::FG3), s);
                 }
             }
         }
@@ -545,10 +655,24 @@ impl<'ui> Canvas<'ui> {
         }
         let text = lines.join("   ");
         let ts = ui.calc_text_size(&text);
-        let a = [self.origin[0] + space::S, self.origin[1] + self.size[1] - ts[1] - 2.0 * space::XS - space::S];
-        let b = [a[0] + ts[0] + 2.0 * space::XS, a[1] + ts[1] + 2.0 * space::XS];
-        self.dl.add_rect(a, b, self.c(color::DIM)).rounding(size::RADIUS).filled(true).build();
-        self.dl.add_text([a[0] + space::XS, a[1] + space::XS], self.c(color::FG2), text);
+        let a = [
+            self.origin[0] + space::S,
+            self.origin[1] + self.size[1] - ts[1] - 2.0 * space::XS - space::S,
+        ];
+        let b = [
+            a[0] + ts[0] + 2.0 * space::XS,
+            a[1] + ts[1] + 2.0 * space::XS,
+        ];
+        self.dl
+            .add_rect(a, b, self.c(color::DIM))
+            .rounding(size::RADIUS)
+            .filled(true)
+            .build();
+        self.dl.add_text(
+            [a[0] + space::XS, a[1] + space::XS],
+            self.c(color::FG2),
+            text,
+        );
     }
 }
 
@@ -627,7 +751,9 @@ impl MapView {
         let w = (max[0] - min[0]).abs().max(1.0);
         let h = (max[1] - min[1]).abs().max(1.0);
         self.center = [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5];
-        self.zoom = (view_px[0] / w).min(view_px[1] / h).clamp(self.min_zoom, self.max_zoom);
+        self.zoom = (view_px[0] / w)
+            .min(view_px[1] / h)
+            .clamp(self.min_zoom, self.max_zoom);
     }
 
     /// Multiplies the zoom by `factor`, keeping the centre.
@@ -670,7 +796,11 @@ impl MapView {
         ui.child_window(id)
             .size(size_)
             .border(true)
-            .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE | WindowFlags::NO_MOVE)
+            .flags(
+                WindowFlags::NO_SCROLLBAR
+                    | WindowFlags::NO_SCROLL_WITH_MOUSE
+                    | WindowFlags::NO_MOVE,
+            )
             .build(|| {
                 let origin = ui.cursor_screen_pos();
                 let sz = ui.content_region_avail();
@@ -690,7 +820,10 @@ impl MapView {
                 let delta = ui.io().mouse_delta;
 
                 // pan: drag with the left button
-                if active && ui.is_mouse_dragging(MouseButton::Left) && (delta[0] != 0.0 || delta[1] != 0.0) {
+                if active
+                    && ui.is_mouse_dragging(MouseButton::Left)
+                    && (delta[0] != 0.0 || delta[1] != 0.0)
+                {
                     self.center[0] -= delta[0] / self.zoom;
                     self.center[1] -= delta[1] / self.zoom;
                     self.follow = false;
@@ -699,7 +832,8 @@ impl MapView {
                 // zoom: wheel, keeping the world point under the cursor still
                 if hovered && wheel != 0.0 {
                     let before = screen_to_world(origin, sz, self.center, self.zoom, mouse);
-                    self.zoom = (self.zoom * self.wheel_step.powf(wheel)).clamp(self.min_zoom, self.max_zoom);
+                    self.zoom = (self.zoom * self.wheel_step.powf(wheel))
+                        .clamp(self.min_zoom, self.max_zoom);
                     let after = screen_to_world(origin, sz, self.center, self.zoom, mouse);
                     if !self.follow {
                         self.center[0] += before[0] - after[0];
@@ -715,7 +849,8 @@ impl MapView {
                     size: sz,
                     center: self.center,
                     zoom: self.zoom,
-                    mouse_world: hovered.then(|| screen_to_world(origin, sz, self.center, self.zoom, mouse)),
+                    mouse_world: hovered
+                        .then(|| screen_to_world(origin, sz, self.center, self.zoom, mouse)),
                     alpha: crate::widgets::style_alpha(ui),
                 };
                 resp.hovered = hovered;
@@ -735,7 +870,14 @@ impl MapView {
                         continue;
                     }
                     layer.tiles.begin_frame(frame);
-                    canvas.draw_tiles(ui, layer.tiles, layer.alpha, i == 0, self.show_tile_grid, self.show_tile_labels);
+                    canvas.draw_tiles(
+                        ui,
+                        layer.tiles,
+                        layer.alpha,
+                        i == 0,
+                        self.show_tile_grid,
+                        self.show_tile_labels,
+                    );
                 }
                 overlay(&canvas);
                 if self.show_hud {
@@ -757,7 +899,10 @@ mod tests {
         assert_eq!(world_to_screen(o, sz, c, z, c), [500.0, 350.0]);
         for p in [[0.0, 0.0], [83_123.0, 147_900.0], [-5.0, 9.0]] {
             let back = screen_to_world(o, sz, c, z, world_to_screen(o, sz, c, z, p));
-            assert!((back[0] - p[0]).abs() < 0.01 && (back[1] - p[1]).abs() < 0.01, "{p:?} -> {back:?}");
+            assert!(
+                (back[0] - p[0]).abs() < 0.01 && (back[1] - p[1]).abs() < 0.01,
+                "{p:?} -> {back:?}"
+            );
         }
     }
 
@@ -778,17 +923,25 @@ mod tests {
 
     #[test]
     fn tile_grid_state_machine() {
-        let mut g = TileGrid::new([-20.0 * 32768.0, -18.0 * 32768.0], [32768.0, 32768.0]).with_bounds([16, 10], [26, 26]);
+        let mut g = TileGrid::new([-20.0 * 32768.0, -18.0 * 32768.0], [32768.0, 32768.0])
+            .with_bounds([16, 10], [26, 26]);
         assert_eq!(g.tile_at([83_000.0, 148_000.0]), [22, 22]);
         g.begin_frame(1);
         assert_eq!(g.tile([22, 22]), Tile::Loading);
-        assert_eq!(g.tile([0, 0]), Tile::Missing, "outside the bounds, never requested");
+        assert_eq!(
+            g.tile([0, 0]),
+            Tile::Missing,
+            "outside the bounds, never requested"
+        );
         assert_eq!(g.state([22, 22]), TileState::Pending);
         assert_eq!(g.pending_count(), 1);
         let p = g.take_pending();
         assert_eq!(p, vec![[22, 22]]);
         assert_eq!(g.state([22, 22]), TileState::Loading);
-        assert!(g.take_pending().is_empty(), "loading tiles are not handed out twice");
+        assert!(
+            g.take_pending().is_empty(),
+            "loading tiles are not handed out twice"
+        );
         g.set([22, 22], TextureId::new(7));
         assert_eq!(g.tile([22, 22]), Tile::Ready(TextureId::new(7)));
         assert_eq!(g.counts(), (1, 0, 0));
@@ -824,7 +977,11 @@ mod tests {
         g.begin_frame(1000);
         let freed = g.evict_unseen(600);
         assert_eq!(freed.len(), 2, "two ready, unseen tiles freed: {freed:?}");
-        assert_eq!(g.state([5, 5]), TileState::Pending, "missing entries are dropped too");
+        assert_eq!(
+            g.state([5, 5]),
+            TileState::Pending,
+            "missing entries are dropped too"
+        );
         // the never-taken pending tile is kept: a host may still take it
         assert_eq!(g.counts(), (0, 1, 0));
     }

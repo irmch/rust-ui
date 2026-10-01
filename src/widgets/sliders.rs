@@ -14,10 +14,22 @@ use super::*;
 /// Custom slider: 4 px track, 16 px knob, fills `width` and is 32 px tall.
 /// Returns `true` while the value changes. Drag with the mouse; the value is
 /// rounded to `step`.
-pub fn slider_track(ui: &Ui, id: &str, value: &mut f32, min: f32, max: f32, step: f32, width: f32) -> bool {
+pub fn slider_track(
+    ui: &Ui,
+    id: &str,
+    value: &mut f32,
+    min: f32,
+    max: f32,
+    step: f32,
+    width: f32,
+) -> bool {
     let _id = ui.push_id(id);
     let p = ui.cursor_screen_pos();
-    let w = if width > 0.0 { width } else { ui.content_region_avail()[0] };
+    let w = if width > 0.0 {
+        width
+    } else {
+        ui.content_region_avail()[0]
+    };
     let h = size::CONTROL;
     ui.invisible_button("##track", [w, h]);
     let active = ui.is_item_active();
@@ -58,8 +70,12 @@ pub fn slider_track(ui: &Ui, id: &str, value: &mut f32, min: f32, max: f32, step
     } else {
         color::ACCENT
     };
-    dl.add_circle([kx, cy], k, fade(color::BG0, al)).filled(true).build();
-    dl.add_circle([kx, cy], k - 1.0, fade(knob, al)).filled(true).build();
+    dl.add_circle([kx, cy], k, fade(color::BG0, al))
+        .filled(true)
+        .build();
+    dl.add_circle([kx, cy], k - 1.0, fade(knob, al))
+        .filled(true)
+        .build();
     changed
 }
 
@@ -78,7 +94,13 @@ pub struct Slider<'a> {
 
 impl<'a> Slider<'a> {
     pub fn new(label: &'a str, min: f32, max: f32) -> Self {
-        Self { label, min, max, step: 0.0, suffix: "" }
+        Self {
+            label,
+            min,
+            max,
+            step: 0.0,
+            suffix: "",
+        }
     }
 
     /// Rounds the value to multiples of `step` (`0.0` = continuous).
@@ -95,7 +117,16 @@ impl<'a> Slider<'a> {
 
     /// Draws the row; returns `true` while the value changes.
     pub fn show(self, ui: &Ui, kit: &Kit, value: &mut f32) -> bool {
-        labeled_slider(ui, kit, self.label, value, self.min, self.max, self.step, self.suffix)
+        labeled_slider(
+            ui,
+            kit,
+            self.label,
+            value,
+            self.min,
+            self.max,
+            self.step,
+            self.suffix,
+        )
     }
 }
 
@@ -154,7 +185,11 @@ pub fn labeled_slider(
 /// Determinate progress bar: 8 px track, accent fill.
 pub fn progress(ui: &Ui, fraction: f32, width: f32) {
     let p = ui.cursor_screen_pos();
-    let w = if width > 0.0 { width } else { ui.content_region_avail()[0] };
+    let w = if width > 0.0 {
+        width
+    } else {
+        ui.content_region_avail()[0]
+    };
     ui.dummy([w, 8.0]);
     let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();

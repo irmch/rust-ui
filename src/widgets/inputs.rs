@@ -13,8 +13,20 @@ use super::*;
 // ---------------------------------------------------------------------------
 
 /// Text input 32 px tall with a placeholder. `width` 0 = fill.
-pub fn input(ui: &Ui, kit: &Kit, id: &str, hint: &str, buf: &mut String, width: f32, bold: bool) -> bool {
-    Input::new(id).hint(hint).width(width).bold(bold).show(ui, kit, buf)
+pub fn input(
+    ui: &Ui,
+    kit: &Kit,
+    id: &str,
+    hint: &str,
+    buf: &mut String,
+    width: f32,
+    bold: bool,
+) -> bool {
+    Input::new(id)
+        .hint(hint)
+        .width(width)
+        .bold(bold)
+        .show(ui, kit, buf)
 }
 
 /// Builder form of [`input`]: `Input::new("login").hint("Login").show(ui, kit, &mut s)`.
@@ -28,7 +40,12 @@ pub struct Input<'a> {
 
 impl<'a> Input<'a> {
     pub fn new(id: &'a str) -> Self {
-        Self { id, hint: "", width: 0.0, bold: false }
+        Self {
+            id,
+            hint: "",
+            width: 0.0,
+            bold: false,
+        }
     }
 
     /// Placeholder shown while the buffer is empty.
@@ -51,9 +68,19 @@ impl<'a> Input<'a> {
 
     /// Draws the field; returns `true` when the text changed.
     pub fn show(self, ui: &Ui, kit: &Kit, buf: &mut String) -> bool {
-        let _f = ui.push_font(if self.bold { kit.fonts.mono13b } else { kit.fonts.mono13 });
-        let _w = ui.push_item_width(if self.width > 0.0 { self.width } else { grid::FILL });
-        ui.input_text(format!("##{}", self.id), buf).hint(self.hint).build()
+        let _f = ui.push_font(if self.bold {
+            kit.fonts.mono13b
+        } else {
+            kit.fonts.mono13
+        });
+        let _w = ui.push_item_width(if self.width > 0.0 {
+            self.width
+        } else {
+            grid::FILL
+        });
+        ui.input_text(format!("##{}", self.id), buf)
+            .hint(self.hint)
+            .build()
     }
 }
 
@@ -63,9 +90,21 @@ pub fn path_input(ui: &Ui, kit: &Kit, id: &str, buf: &mut String) -> (bool, bool
     let w = grid::input_group_width(ui, &[size::BTN_BROWSE, size::BTN_OPEN]);
     input(ui, kit, id, "Path to the game executable", buf, w, true);
     ui.same_line();
-    let browse = button_sized(ui, kit, ButtonKind::Secondary, "Browse", [size::BTN_BROWSE, size::CONTROL]);
+    let browse = button_sized(
+        ui,
+        kit,
+        ButtonKind::Secondary,
+        "Browse",
+        [size::BTN_BROWSE, size::CONTROL],
+    );
     ui.same_line();
-    let open = button_sized(ui, kit, ButtonKind::Secondary, "Open", [size::BTN_OPEN, size::CONTROL]);
+    let open = button_sized(
+        ui,
+        kit,
+        ButtonKind::Secondary,
+        "Open",
+        [size::BTN_OPEN, size::CONTROL],
+    );
     (browse, open)
 }
 
@@ -73,8 +112,13 @@ pub fn path_input(ui: &Ui, kit: &Kit, id: &str, buf: &mut String) -> (bool, bool
 /// `true` when the text changed.
 pub fn textarea(ui: &Ui, kit: &Kit, id: &str, buf: &mut String, rows: u32, width: f32) -> bool {
     let _f = ui.push_font(kit.fonts.mono13);
-    let w = if width > 0.0 { width } else { ui.content_region_avail()[0] };
+    let w = if width > 0.0 {
+        width
+    } else {
+        ui.content_region_avail()[0]
+    };
     let h = ui.text_line_height() * rows.max(1) as f32 + 2.0 * space::S;
     let _pad = ui.push_style_var(StyleVar::FramePadding([size::PAD_X, space::S]));
-    ui.input_text_multiline(format!("##{id}"), buf, [w, h]).build()
+    ui.input_text_multiline(format!("##{id}"), buf, [w, h])
+        .build()
 }

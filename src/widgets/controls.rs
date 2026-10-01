@@ -1,7 +1,7 @@
 use imgui::Ui;
 
-use crate::anim;
 use crate::Kit;
+use crate::anim;
 use crate::tokens::{color, size, space};
 
 #[allow(unused_imports)]
@@ -38,7 +38,14 @@ pub fn radio<T: PartialEq + Copy>(
     false
 }
 
-pub(super) fn check_like(ui: &Ui, kit: &Kit, label: &str, hint: Option<&str>, value: &mut bool, round: bool) -> bool {
+pub(super) fn check_like(
+    ui: &Ui,
+    kit: &Kit,
+    label: &str,
+    hint: Option<&str>,
+    value: &mut bool,
+    round: bool,
+) -> bool {
     let _id = ui.push_id(label);
     // imgui convention: "Shown##unique" shows "Shown", "##only_id" shows nothing
     let label = visible_label(label);
@@ -65,7 +72,9 @@ pub(super) fn check_like(ui: &Ui, kit: &Kit, label: &str, hint: Option<&str>, va
     }
     let hovered = ui.is_item_hovered();
     // 0 = off, 1 = on; eases over anim::CONTROL seconds when enabled.
-    let t = kit.anim.toggle(ui, anim::key(ui, "##box"), *value, anim::CONTROL);
+    let t = kit
+        .anim
+        .toggle(ui, anim::key(ui, "##box"), *value, anim::CONTROL);
     let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
     let by = p[1] + ((row_h - b) / 2.0).round();
@@ -84,13 +93,19 @@ pub(super) fn check_like(ui: &Ui, kit: &Kit, label: &str, hint: Option<&str>, va
     if t > 0.0 {
         let c = [p[0] + b / 2.0, by + b / 2.0];
         if round {
-            dl.add_circle(c, 4.0 * t, fade(color::ACCENT, al)).filled(true).build();
+            dl.add_circle(c, 4.0 * t, fade(color::ACCENT, al))
+                .filled(true)
+                .build();
         } else {
             // the mark grows from the centre of the box
             let q = |x: f32, y: f32| [c[0] + (p[0] + x - c[0]) * t, c[1] + (by + y - c[1]) * t];
             let ink = [color::BG0[0], color::BG0[1], color::BG0[2], t * al];
-            dl.add_line(q(4.0, 9.5), q(7.5, 13.0), ink).thickness(1.6).build();
-            dl.add_line(q(7.5, 13.0), q(14.0, 5.0), ink).thickness(1.6).build();
+            dl.add_line(q(4.0, 9.5), q(7.5, 13.0), ink)
+                .thickness(1.6)
+                .build();
+            dl.add_line(q(7.5, 13.0), q(14.0, 5.0), ink)
+                .thickness(1.6)
+                .build();
         }
     }
     let mut x = p[0] + b + space::M;
@@ -123,7 +138,9 @@ pub fn switch(ui: &Ui, kit: &Kit, label: &str, value: &mut bool) -> bool {
     if clicked {
         *value = !*value;
     }
-    let t = kit.anim.toggle(ui, anim::key(ui, "##sw"), *value, anim::CONTROL);
+    let t = kit
+        .anim
+        .toggle(ui, anim::key(ui, "##sw"), *value, anim::CONTROL);
     let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
     let y = p[1] + ((row_h - sh) / 2.0).round();

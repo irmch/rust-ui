@@ -84,7 +84,10 @@ impl Anim {
     pub fn new() -> Self {
         Self {
             settings: Cell::new(Settings::default()),
-            state: RefCell::new(State { moved_frame: -1, ..State::default() }),
+            state: RefCell::new(State {
+                moved_frame: -1,
+                ..State::default()
+            }),
         }
     }
 
@@ -123,7 +126,14 @@ impl Anim {
         let target = if on { 1.0 } else { 0.0 };
         let d = (duration * st.scale).max(1e-3);
         let dt = ui.io().delta_time;
-        let v = self.state.borrow_mut().step(key, st.controls, dt, ui.frame_count(), target, |v, dt| toggle_step(v, target, dt / d));
+        let v = self.state.borrow_mut().step(
+            key,
+            st.controls,
+            dt,
+            ui.frame_count(),
+            target,
+            |v, dt| toggle_step(v, target, dt / d),
+        );
         ease_out(v)
     }
 
@@ -132,7 +142,11 @@ impl Anim {
     pub fn approach(&self, ui: &Ui, key: u32, target: f32, tau: f32, enabled: bool) -> f32 {
         let tau = (tau * self.settings().scale).max(1e-3);
         let dt = ui.io().delta_time;
-        self.state.borrow_mut().step(key, enabled, dt, ui.frame_count(), target, |v, dt| approach_step(v, target, dt, tau))
+        self.state
+            .borrow_mut()
+            .step(key, enabled, dt, ui.frame_count(), target, |v, dt| {
+                approach_step(v, target, dt, tau)
+            })
     }
 }
 
@@ -156,7 +170,15 @@ fn approach_step(v: f32, target: f32, dt: f32, tau: f32) -> f32 {
 }
 
 impl State {
-    fn step(&mut self, key: u32, enabled: bool, dt: f32, frame: i32, target: f32, advance: impl FnOnce(f32, f32) -> f32) -> f32 {
+    fn step(
+        &mut self,
+        key: u32,
+        enabled: bool,
+        dt: f32,
+        frame: i32,
+        target: f32,
+        advance: impl FnOnce(f32, f32) -> f32,
+    ) -> f32 {
         let dt = dt.min(0.1);
         if !enabled {
             self.values.remove(&key);
@@ -166,7 +188,10 @@ impl State {
             self.sweep_frame = frame;
             self.values.retain(|_, e| frame - e.last_frame < 300);
         }
-        let e = self.values.entry(key).or_insert(Entry { value: target, last_frame: frame });
+        let e = self.values.entry(key).or_insert(Entry {
+            value: target,
+            last_frame: frame,
+        });
         e.last_frame = frame;
         let next = advance(e.value, dt);
         if next != e.value {
@@ -220,14 +245,26 @@ mod tests {
         let mut st = State::default();
         let mut v = 0.0;
         for frame in 1..200 {
-            v = st.step(7, true, 1.0 / 60.0, frame, 1.0, |v, dt| toggle_step(v, 1.0, dt / 0.14));
+            v = st.step(7, true, 1.0 / 60.0, frame, 1.0, |v, dt| {
+                toggle_step(v, 1.0, dt / 0.14)
+            });
         }
         assert_eq!(v, 1.0);
         let moved_at = st.moved_frame;
         for frame in 200..260 {
-            assert_eq!(st.step(7, true, 1.0 / 60.0, frame, 1.0, |v, dt| toggle_step(v, 1.0, dt / 0.14)), 1.0);
+            assert_eq!(
+                st.step(7, true, 1.0 / 60.0, frame, 1.0, |v, dt| toggle_step(
+                    v,
+                    1.0,
+                    dt / 0.14
+                )),
+                1.0
+            );
         }
-        assert_eq!(st.moved_frame, moved_at, "value kept 'moving' after reaching its target");
+        assert_eq!(
+            st.moved_frame, moved_at,
+            "value kept 'moving' after reaching its target"
+        );
     }
 
     #[test]
@@ -239,9 +276,14 @@ mod tests {
         let mut v = 0.0;
         while v < 1.0 && frames < 1000 {
             frames += 1;
-            v = st.step(1, true, 0.01, frames, 1.0, |v, dt| toggle_step(v, 1.0, dt / 0.14));
+            v = st.step(1, true, 0.01, frames, 1.0, |v, dt| {
+                toggle_step(v, 1.0, dt / 0.14)
+            });
         }
-        assert!((13..=15).contains(&frames), "0.14 s at 100 fps, got {frames} frames");
+        assert!(
+            (13..=15).contains(&frames),
+            "0.14 s at 100 fps, got {frames} frames"
+        );
     }
 
     #[test]

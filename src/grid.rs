@@ -52,11 +52,7 @@ impl Grid {
     /// Form-pane span for a window width: 5 at the reference size and above,
     /// 4 on narrower windows.
     pub fn form_span(window_width: f32) -> u32 {
-        if window_width >= 1280.0 {
-            5
-        } else {
-            4
-        }
+        if window_width >= 1280.0 { 5 } else { 4 }
     }
 
     /// Two side-by-side child windows: the left one spans `left_span`
@@ -310,7 +306,10 @@ mod tests {
         assert_eq!(g.span_width(avail, 5), 504.0);
         assert_eq!(g.span_width(avail, 7), 712.0);
         assert_eq!(g.span_width(avail, 12), avail);
-        assert_eq!(g.span_width(avail, 5) + g.gutter + g.span_width(avail, 7), avail);
+        assert_eq!(
+            g.span_width(avail, 5) + g.gutter + g.span_width(avail, 7),
+            avail
+        );
     }
 
     #[test]

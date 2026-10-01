@@ -1,10 +1,10 @@
 use imgui::{StyleColor, StyleVar, Ui, WindowFlags};
 
-use crate::anim;
 use crate::Kit;
+use crate::anim;
 use crate::grid;
 use crate::theme::ButtonKind;
-use crate::tokens::{color, size, space, Rgba};
+use crate::tokens::{Rgba, color, size, space};
 
 #[allow(unused_imports)]
 use super::*;
@@ -25,13 +25,24 @@ pub enum TitleBarAction {
 /// 48 px title bar: app name / crumb on the left, tabs centred, window
 /// controls on the right (artboard 04 · section 01). Returns the window
 /// control pressed, if any, and updates `active` on tab clicks.
-pub fn title_bar(ui: &Ui, kit: &Kit, app: &str, crumb: &str, tabs: &[&str], active: &mut usize) -> TitleBarAction {
+pub fn title_bar(
+    ui: &Ui,
+    kit: &Kit,
+    app: &str,
+    crumb: &str,
+    tabs: &[&str],
+    active: &mut usize,
+) -> TitleBarAction {
     let mut action = TitleBarAction::None;
     let _pad = ui.push_style_var(StyleVar::WindowPadding([space::XL, 0.0]));
     let _bg = ui.push_style_color(StyleColor::ChildBg, color::BG2);
     ui.child_window("##titlebar")
         .size([0.0, size::BAR])
-        .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE | WindowFlags::ALWAYS_USE_WINDOW_PADDING)
+        .flags(
+            WindowFlags::NO_SCROLLBAR
+                | WindowFlags::NO_SCROLL_WITH_MOUSE
+                | WindowFlags::ALWAYS_USE_WINDOW_PADDING,
+        )
         .build(|| {
             bottom_border(ui);
             // left: app / crumb, the 13 px texts on the 16 px app baseline
@@ -51,8 +62,12 @@ pub fn title_bar(ui: &Ui, kit: &Kit, app: &str, crumb: &str, tabs: &[&str], acti
             ui.text_colored(color::FG2, crumb);
 
             // centre: tabs
-            let tab_w: Vec<f32> = tabs.iter().map(|t| ui.calc_text_size(t)[0] + 2.0 * size::PAD_X).collect();
-            let total: f32 = tab_w.iter().sum::<f32>() + space::XS * (tabs.len().saturating_sub(1)) as f32;
+            let tab_w: Vec<f32> = tabs
+                .iter()
+                .map(|t| ui.calc_text_size(t)[0] + 2.0 * size::PAD_X)
+                .collect();
+            let total: f32 =
+                tab_w.iter().sum::<f32>() + space::XS * (tabs.len().saturating_sub(1)) as f32;
             let avail = ui.window_size()[0];
             let tabs_x = ((avail - total) / 2.0).round();
             let tabs_y = (size::BAR - size::CONTROL) / 2.0;
@@ -60,7 +75,8 @@ pub fn title_bar(ui: &Ui, kit: &Kit, app: &str, crumb: &str, tabs: &[&str], acti
             if slide {
                 // One highlight rect that eases from the old tab to the new one;
                 // the tab buttons then draw no background of their own.
-                let (mut x, mut hl_x, mut hl_w) = (tabs_x, tabs_x, tab_w.first().copied().unwrap_or(0.0));
+                let (mut x, mut hl_x, mut hl_w) =
+                    (tabs_x, tabs_x, tab_w.first().copied().unwrap_or(0.0));
                 for (i, w) in tab_w.iter().enumerate() {
                     if i == *active {
                         hl_x = x;
@@ -68,12 +84,20 @@ pub fn title_bar(ui: &Ui, kit: &Kit, app: &str, crumb: &str, tabs: &[&str], acti
                     }
                     x += w + space::XS;
                 }
-                let hx = kit.anim.approach(ui, anim::key(ui, "##tabs_hl_x"), hl_x, anim::TABS, true);
-                let hw = kit.anim.approach(ui, anim::key(ui, "##tabs_hl_w"), hl_w, anim::TABS, true);
+                let hx =
+                    kit.anim
+                        .approach(ui, anim::key(ui, "##tabs_hl_x"), hl_x, anim::TABS, true);
+                let hw =
+                    kit.anim
+                        .approach(ui, anim::key(ui, "##tabs_hl_w"), hl_w, anim::TABS, true);
                 let wp = ui.window_pos();
                 let a = [wp[0] + hx, wp[1] + tabs_y];
                 ui.get_window_draw_list()
-                    .add_rect(a, [a[0] + hw, a[1] + size::CONTROL], fade(color::BG3, style_alpha(ui)))
+                    .add_rect(
+                        a,
+                        [a[0] + hw, a[1] + size::CONTROL],
+                        fade(color::BG3, style_alpha(ui)),
+                    )
                     .rounding(size::RADIUS)
                     .filled(true)
                     .build();
@@ -92,7 +116,11 @@ pub fn title_bar(ui: &Ui, kit: &Kit, app: &str, crumb: &str, tabs: &[&str], acti
             let ctrl = 3.0 * size::CONTROL + 2.0 * space::XS;
             let cy = (size::BAR - size::CONTROL) / 2.0;
             let mut x = avail - space::L - ctrl;
-            for which in [TitleBarAction::Minimize, TitleBarAction::Maximize, TitleBarAction::Close] {
+            for which in [
+                TitleBarAction::Minimize,
+                TitleBarAction::Maximize,
+                TitleBarAction::Close,
+            ] {
                 ui.set_cursor_pos([x, cy]);
                 if window_control(ui, which) {
                     action = which;
@@ -121,21 +149,32 @@ pub fn window_control(ui: &Ui, which: TitleBarAction) -> bool {
     let dl = ui.get_window_draw_list();
     if hovered || active {
         let bg = fade(if active { color::BG2 } else { color::BG3 }, al);
-        dl.add_rect(p, [p[0] + s, p[1] + s], bg).rounding(size::RADIUS).filled(true).build();
+        dl.add_rect(p, [p[0] + s, p[1] + s], bg)
+            .rounding(size::RADIUS)
+            .filled(true)
+            .build();
     }
     let fg = fade(if hovered { color::FG } else { color::FG2 }, al);
     let c = [(p[0] + s / 2.0).round(), (p[1] + s / 2.0).round()];
     let r = 5.0;
     match which {
         TitleBarAction::Minimize => {
-            dl.add_line([c[0] - r, c[1] + 0.5], [c[0] + r, c[1] + 0.5], fg).build();
+            dl.add_line([c[0] - r, c[1] + 0.5], [c[0] + r, c[1] + 0.5], fg)
+                .build();
         }
         TitleBarAction::Maximize => {
-            dl.add_rect([c[0] - r + 0.5, c[1] - r + 0.5], [c[0] + r - 0.5, c[1] + r - 0.5], fg).build();
+            dl.add_rect(
+                [c[0] - r + 0.5, c[1] - r + 0.5],
+                [c[0] + r - 0.5, c[1] + r - 0.5],
+                fg,
+            )
+            .build();
         }
         TitleBarAction::Close => {
-            dl.add_line([c[0] - r, c[1] - r], [c[0] + r, c[1] + r], fg).build();
-            dl.add_line([c[0] - r, c[1] + r], [c[0] + r, c[1] - r], fg).build();
+            dl.add_line([c[0] - r, c[1] - r], [c[0] + r, c[1] + r], fg)
+                .build();
+            dl.add_line([c[0] - r, c[1] + r], [c[0] + r, c[1] - r], fg)
+                .build();
         }
         TitleBarAction::None => {}
     }
@@ -166,13 +205,21 @@ pub fn tab_strip(ui: &Ui, kit: &Kit, id: &str, tabs: &[&str], active: &mut usize
             }
             x += w + space::XS;
         }
-        let hx = kit.anim.approach(ui, anim::key(ui, "##strip_hl_x"), hl_x, anim::TABS, true);
-        let hw = kit.anim.approach(ui, anim::key(ui, "##strip_hl_w"), hl_w, anim::TABS, true);
+        let hx = kit
+            .anim
+            .approach(ui, anim::key(ui, "##strip_hl_x"), hl_x, anim::TABS, true);
+        let hw = kit
+            .anim
+            .approach(ui, anim::key(ui, "##strip_hl_w"), hl_w, anim::TABS, true);
         let wp = ui.window_pos();
         let sy = ui.scroll_y();
         let a = [wp[0] + hx, wp[1] + row.top - sy];
         ui.get_window_draw_list()
-            .add_rect(a, [a[0] + hw, a[1] + size::CONTROL], fade(color::BG3, style_alpha(ui)))
+            .add_rect(
+                a,
+                [a[0] + hw, a[1] + size::CONTROL],
+                fade(color::BG3, style_alpha(ui)),
+            )
             .rounding(size::RADIUS)
             .filled(true)
             .build();
@@ -199,8 +246,16 @@ pub fn tab(ui: &Ui, kit: &Kit, label: &str, width: f32, active: bool) -> bool {
 /// [`tab`] with `own_bg = false` when the caller draws the active highlight
 /// itself (the title bar's sliding one).
 fn tab_ex(ui: &Ui, kit: &Kit, label: &str, width: f32, active: bool, own_bg: bool) -> bool {
-    let _f = ui.push_font(if active { kit.fonts.mono13b } else { kit.fonts.mono13 });
-    let bg = if active && own_bg { color::BG3 } else { color::TRANSPARENT };
+    let _f = ui.push_font(if active {
+        kit.fonts.mono13b
+    } else {
+        kit.fonts.mono13
+    });
+    let bg = if active && own_bg {
+        color::BG3
+    } else {
+        color::TRANSPARENT
+    };
     let fg = if active { color::FG } else { color::FG2 };
     let _c = [
         ui.push_style_color(StyleColor::Button, bg),
@@ -223,12 +278,22 @@ pub struct StatItem<'a> {
 /// 48 px status strip: stats with dividers on the left, `actions` drawn
 /// right-aligned (artboard 04 · section 01). `action_widths` must list the
 /// widths of the items `actions` draws so they can be right-aligned.
-pub fn status_strip(ui: &Ui, kit: &Kit, items: &[StatItem<'_>], action_widths: &[f32], actions: impl FnOnce(&Ui)) {
+pub fn status_strip(
+    ui: &Ui,
+    kit: &Kit,
+    items: &[StatItem<'_>],
+    action_widths: &[f32],
+    actions: impl FnOnce(&Ui),
+) {
     let _pad = ui.push_style_var(StyleVar::WindowPadding([space::XL, 0.0]));
     let _bg = ui.push_style_color(StyleColor::ChildBg, color::BG1);
     ui.child_window("##statusstrip")
         .size([0.0, size::BAR])
-        .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE | WindowFlags::ALWAYS_USE_WINDOW_PADDING)
+        .flags(
+            WindowFlags::NO_SCROLLBAR
+                | WindowFlags::NO_SCROLL_WITH_MOUSE
+                | WindowFlags::ALWAYS_USE_WINDOW_PADDING,
+        )
         .build(|| {
             bottom_border(ui);
             let row = grid::Row::start(ui, size::BAR);
@@ -253,7 +318,13 @@ pub fn status_strip(ui: &Ui, kit: &Kit, items: &[StatItem<'_>], action_widths: &
 
 /// Toolbar row above a panel: caption on the left, small buttons on the
 /// right (the "STATUS   Copy Save" header of the log).
-pub fn panel_header(ui: &Ui, kit: &Kit, cap: &str, action_widths: &[f32], actions: impl FnOnce(&Ui)) {
+pub fn panel_header(
+    ui: &Ui,
+    kit: &Kit,
+    cap: &str,
+    action_widths: &[f32],
+    actions: impl FnOnce(&Ui),
+) {
     let row = grid::Row::start(ui, size::CONTROL);
     let cap_h = {
         let _f = ui.push_font(kit.fonts.mono10);
@@ -299,11 +370,20 @@ pub fn log_panel(ui: &Ui, id: &str, size_: [f32; 2], body: impl FnOnce(&Ui)) {
 /// list clipper), so a log of 100k lines costs the same as one of 30.
 /// `row_h` is the height of one row (measure it with the row's font pushed)
 /// and `row(ui, i)` draws row `i`. Follows appended rows like [`log_panel`].
-pub fn log_list(ui: &Ui, id: &str, size_: [f32; 2], rows: usize, row_h: f32, mut row: impl FnMut(&Ui, usize)) {
+pub fn log_list(
+    ui: &Ui,
+    id: &str,
+    size_: [f32; 2],
+    rows: usize,
+    row_h: f32,
+    mut row: impl FnMut(&Ui, usize),
+) {
     panel(ui, id, size_, |ui| {
         let at_bottom = ui.scroll_y() >= ui.scroll_max_y() - 1.0;
         let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-        let clipper = imgui::ListClipper::new(rows as i32).items_height(row_h).begin(ui);
+        let clipper = imgui::ListClipper::new(rows as i32)
+            .items_height(row_h)
+            .begin(ui);
         for i in clipper.iter() {
             row(ui, i as usize);
         }
@@ -347,7 +427,8 @@ pub fn banner(ui: &Ui, kit: &Kit, kind: TagKind, text: &str, action: Option<&str
                 ui.same_line();
                 let w = button_small_width(ui, kit, a);
                 grid::right_align(ui, &[w]);
-                let y = ui.cursor_pos()[1] - ((size::CONTROL - ui.text_line_height()) / 2.0).round();
+                let y =
+                    ui.cursor_pos()[1] - ((size::CONTROL - ui.text_line_height()) / 2.0).round();
                 ui.set_cursor_pos([ui.cursor_pos()[0], y + (size::CONTROL - size::SMALL) / 2.0]);
                 clicked = button_small(ui, kit, ButtonKind::Secondary, a);
             }

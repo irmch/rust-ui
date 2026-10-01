@@ -39,16 +39,16 @@ mod tiles;
 use demo::{LaunchEvent, LaunchScreen};
 use imgui::MouseButton;
 use imgui_kit::{
+    Kit,
     fonts::{self, FontFiles},
     theme,
     tokens::{color, size},
     widgets::TitleBarAction,
-    Kit,
 };
-use settings::Settings;
-use tiles::TileLoader;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use raw_window_handle::HasRawWindowHandle;
+use settings::Settings;
+use tiles::TileLoader;
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
@@ -169,7 +169,10 @@ fn main() {
                     None => target.set_control_flow(ControlFlow::Wait),
                 }
             }
-            Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } => {
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => {
                 // Delta time between rendered frames (not between event-loop
                 // wake-ups: with on-demand rendering those are far more frequent).
                 let now = Instant::now();
@@ -187,8 +190,11 @@ fn main() {
                     imgui.fonts().clear();
                     kit.fonts = fonts::load(&mut imgui, font_files(), s);
                     imgui.io_mut().font_global_scale = 1.0 / s;
-                    renderer = imgui_glow_renderer::AutoRenderer::initialize(glow_context(&context), &mut imgui)
-                        .expect("failed to recreate renderer");
+                    renderer = imgui_glow_renderer::AutoRenderer::initialize(
+                        glow_context(&context),
+                        &mut imgui,
+                    )
+                    .expect("failed to recreate renderer");
                 }
                 platform.prepare_frame(imgui.io_mut(), &window).unwrap();
                 unsafe {
@@ -205,7 +211,8 @@ fn main() {
                 // field has focus: imgui trickles queued key events one per
                 // frame (a fast burst would lose its tail otherwise) and the
                 // caret has to blink.
-                animating = kit.anim.animating(ui) || screen.is_animating() || ui.io().want_text_input;
+                animating =
+                    kit.anim.animating(ui) || screen.is_animating() || ui.io().want_text_input;
 
                 // Map tiles: hand new requests to the worker, upload what it
                 // finished, free textures that left the view a while ago, and
@@ -232,7 +239,9 @@ fn main() {
                 let ui_ms = ui_start.elapsed().as_secs_f32() * 1000.0;
                 let (verts, idx) = (draw_data.total_vtx_count, draw_data.total_idx_count);
                 renderer.render(draw_data).expect("error rendering imgui");
-                surface.swap_buffers(&context).expect("failed to swap buffers");
+                surface
+                    .swap_buffers(&context)
+                    .expect("failed to swap buffers");
 
                 if let Some(s) = stats.as_mut() {
                     s.push(ui_ms, verts, idx, screen.tab, screen.gallery.map.view.zoom);
@@ -241,7 +250,9 @@ fn main() {
                     let _ = window.drag_window();
                     // The OS runs the drag and eats the button release, so
                     // tell imgui ourselves or it keeps the button "held".
-                    imgui.io_mut().add_mouse_button_event(MouseButton::Left, false);
+                    imgui
+                        .io_mut()
+                        .add_mouse_button_event(MouseButton::Left, false);
                 }
                 for ev in events {
                     match ev {
@@ -254,8 +265,14 @@ fn main() {
                     }
                 }
             }
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => target.exit(),
-            Event::WindowEvent { event: WindowEvent::Resized(new_size), .. } => {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => target.exit(),
+            Event::WindowEvent {
+                event: WindowEvent::Resized(new_size),
+                ..
+            } => {
                 minimized = new_size.width == 0 || new_size.height == 0;
                 if !minimized {
                     surface.resize(
@@ -267,12 +284,18 @@ fn main() {
                 last_input = Instant::now();
                 platform.handle_event(imgui.io_mut(), &window, &event);
             }
-            Event::WindowEvent { event: WindowEvent::Focused(f), .. } => {
+            Event::WindowEvent {
+                event: WindowEvent::Focused(f),
+                ..
+            } => {
                 focused = f;
                 last_input = Instant::now();
                 platform.handle_event(imgui.io_mut(), &window, &event);
             }
-            Event::WindowEvent { event: WindowEvent::ScaleFactorChanged { scale_factor, .. }, .. } => {
+            Event::WindowEvent {
+                event: WindowEvent::ScaleFactorChanged { scale_factor, .. },
+                ..
+            } => {
                 pending_scale = Some(scale_factor as f32);
                 last_input = Instant::now();
                 platform.handle_event(imgui.io_mut(), &window, &event);
@@ -346,7 +369,12 @@ impl FrameStats {
     }
 }
 
-fn create_window() -> (EventLoop<()>, Window, Surface<WindowSurface>, PossiblyCurrentContext) {
+fn create_window() -> (
+    EventLoop<()>,
+    Window,
+    Surface<WindowSurface>,
+    PossiblyCurrentContext,
+) {
     let event_loop = EventLoop::new().unwrap();
 
     let window_builder = WindowBuilder::new()

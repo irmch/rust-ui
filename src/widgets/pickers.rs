@@ -30,8 +30,18 @@ pub const COMBO_MAX_ROWS: usize = 10;
 /// }
 /// # }
 /// ```
-pub fn combo_begin<'ui>(ui: &'ui Ui, kit: &Kit, id: &str, preview: &str, width: f32) -> Option<PopupToken<'ui>> {
-    let w = if width > 0.0 { width } else { ui.calc_item_width() };
+pub fn combo_begin<'ui>(
+    ui: &'ui Ui,
+    kit: &Kit,
+    id: &str,
+    preview: &str,
+    width: f32,
+) -> Option<PopupToken<'ui>> {
+    let w = if width > 0.0 {
+        width
+    } else {
+        ui.calc_item_width()
+    };
     let p = ui.cursor_screen_pos();
     let h = size::CONTROL;
     let clicked = ui.invisible_button(id, [w, h]);
@@ -45,15 +55,34 @@ pub fn combo_begin<'ui>(ui: &'ui Ui, kit: &Kit, id: &str, preview: &str, width: 
     let al = style_alpha(ui);
     {
         let dl = ui.get_window_draw_list();
-        let bg = if hovered || open { color::BG2 } else { color::BG1 };
-        dl.add_rect(p, [p[0] + w, p[1] + h], fade(bg, al)).rounding(size::RADIUS).filled(true).build();
-        dl.add_rect(p, [p[0] + w, p[1] + h], fade(if open { color::ACCENT } else { color::LINE2 }, al))
+        let bg = if hovered || open {
+            color::BG2
+        } else {
+            color::BG1
+        };
+        dl.add_rect(p, [p[0] + w, p[1] + h], fade(bg, al))
             .rounding(size::RADIUS)
+            .filled(true)
             .build();
+        dl.add_rect(
+            p,
+            [p[0] + w, p[1] + h],
+            fade(if open { color::ACCENT } else { color::LINE2 }, al),
+        )
+        .rounding(size::RADIUS)
+        .build();
         let lh = ui.text_line_height();
         let ty = p[1] + ((h - lh) / 2.0).round();
         dl.add_text([p[0] + size::PAD_X, ty], fade(color::FG, al), preview);
-        chevron(&dl, [p[0] + w - size::PAD_X - CHEVRON, p[1] + ((h - CHEVRON) / 2.0).round()], true, fade(color::FG3, al));
+        chevron(
+            &dl,
+            [
+                p[0] + w - size::PAD_X - CHEVRON,
+                p[1] + ((h - CHEVRON) / 2.0).round(),
+            ],
+            true,
+            fade(color::FG3, al),
+        );
     }
     if clicked {
         ui.open_popup(&popup_id);
@@ -63,7 +92,10 @@ pub fn combo_begin<'ui>(ui: &'ui Ui, kit: &Kit, id: &str, preview: &str, width: 
     let max_h = COMBO_MAX_ROWS as f32 * size::ROW + 2.0 * space::XS;
     unsafe {
         imgui::sys::igSetNextWindowPos(
-            imgui::sys::ImVec2 { x: p[0], y: p[1] + h + 2.0 },
+            imgui::sys::ImVec2 {
+                x: p[0],
+                y: p[1] + h + 2.0,
+            },
             imgui::Condition::Always as i32,
             imgui::sys::ImVec2 { x: 0.0, y: 0.0 },
         );
@@ -73,7 +105,10 @@ pub fn combo_begin<'ui>(ui: &'ui Ui, kit: &Kit, id: &str, preview: &str, width: 
             None,
             std::ptr::null_mut(),
         );
-        imgui::sys::igSetNextWindowSize(imgui::sys::ImVec2 { x: w, y: 0.0 }, imgui::Condition::Always as i32);
+        imgui::sys::igSetNextWindowSize(
+            imgui::sys::ImVec2 { x: w, y: 0.0 },
+            imgui::Condition::Always as i32,
+        );
     }
     let _pad = ui.push_style_var(StyleVar::WindowPadding([0.0, space::XS]));
     let _min = ui.push_style_var(StyleVar::WindowMinSize([0.0, 0.0]));
@@ -87,7 +122,11 @@ pub fn combo_begin<'ui>(ui: &'ui Ui, kit: &Kit, id: &str, preview: &str, width: 
     let key = crate::anim::key(ui, &popup_id);
     let mut nav = kit.state.combo.borrow_mut();
     if nav.key != key {
-        *nav = crate::kit::ComboNav { key, index: -1, ..Default::default() };
+        *nav = crate::kit::ComboNav {
+            key,
+            index: -1,
+            ..Default::default()
+        };
     }
     nav.last_count = nav.count;
     nav.count = 0;
@@ -132,7 +171,14 @@ pub fn combo_item(ui: &Ui, kit: &Kit, label: &str, selected: bool) -> bool {
 }
 
 /// Complete dropdown over `options`; returns `true` when `index` changed.
-pub fn combo(ui: &Ui, kit: &Kit, id: &str, options: &[&str], index: &mut usize, width: f32) -> bool {
+pub fn combo(
+    ui: &Ui,
+    kit: &Kit,
+    id: &str,
+    options: &[&str],
+    index: &mut usize,
+    width: f32,
+) -> bool {
     let preview = options.get(*index).copied().unwrap_or("");
     let mut changed = false;
     if let Some(_open) = combo_begin(ui, kit, id, preview, width) {
@@ -157,7 +203,10 @@ pub fn segmented(ui: &Ui, kit: &Kit, id: &str, options: &[&str], index: &mut usi
     let h = size::SMALL;
     let widths: Vec<f32> = {
         let _f = ui.push_font(kit.fonts.mono13b);
-        options.iter().map(|o| ui.calc_text_size(o)[0] + 2.0 * size::PAD_X).collect()
+        options
+            .iter()
+            .map(|o| ui.calc_text_size(o)[0] + 2.0 * size::PAD_X)
+            .collect()
     };
     let total: f32 = widths.iter().sum();
     let p = ui.cursor_screen_pos();
@@ -175,14 +224,27 @@ pub fn segmented(ui: &Ui, kit: &Kit, id: &str, options: &[&str], index: &mut usi
         let on = *index == i;
         let dl = ui.get_window_draw_list();
         if on {
-            dl.add_rect([x, p[1]], [x + w, p[1] + h], fade(color::ACCENT, al)).rounding(size::RADIUS).filled(true).build();
+            dl.add_rect([x, p[1]], [x + w, p[1] + h], fade(color::ACCENT, al))
+                .rounding(size::RADIUS)
+                .filled(true)
+                .build();
         } else if hovered {
-            dl.add_rect([x, p[1]], [x + w, p[1] + h], fade(color::BG3, al)).rounding(size::RADIUS).filled(true).build();
+            dl.add_rect([x, p[1]], [x + w, p[1] + h], fade(color::BG3, al))
+                .rounding(size::RADIUS)
+                .filled(true)
+                .build();
         }
-        let _f = ui.push_font(if on { kit.fonts.mono13b } else { kit.fonts.mono13 });
+        let _f = ui.push_font(if on {
+            kit.fonts.mono13b
+        } else {
+            kit.fonts.mono13
+        });
         let ts = ui.calc_text_size(o);
         dl.add_text(
-            [x + ((w - ts[0]) / 2.0).round(), p[1] + ((h - ts[1]) / 2.0).round()],
+            [
+                x + ((w - ts[0]) / 2.0).round(),
+                p[1] + ((h - ts[1]) / 2.0).round(),
+            ],
             fade(if on { color::BG0 } else { color::FG2 }, al),
             o,
         );
@@ -224,11 +286,23 @@ pub fn toggle_button(ui: &Ui, kit: &Kit, label: &str, value: &mut bool) -> bool 
         (color::BG2, color::LINE2, color::FG2)
     };
     let dl = ui.get_window_draw_list();
-    dl.add_rect(p, [p[0] + w, p[1] + h], fade(bg, al)).rounding(size::RADIUS).filled(true).build();
-    dl.add_rect(p, [p[0] + w, p[1] + h], fade(border, al)).rounding(size::RADIUS).build();
+    dl.add_rect(p, [p[0] + w, p[1] + h], fade(bg, al))
+        .rounding(size::RADIUS)
+        .filled(true)
+        .build();
+    dl.add_rect(p, [p[0] + w, p[1] + h], fade(border, al))
+        .rounding(size::RADIUS)
+        .build();
     let _f = ui.push_font(kit.fonts.mono13b);
     let ts = ui.calc_text_size(shown);
-    dl.add_text([p[0] + size::BUTTON_PAD_X, p[1] + ((h - ts[1]) / 2.0).round()], fade(fg, al), shown);
+    dl.add_text(
+        [
+            p[0] + size::BUTTON_PAD_X,
+            p[1] + ((h - ts[1]) / 2.0).round(),
+        ],
+        fade(fg, al),
+        shown,
+    );
     clicked
 }
 
@@ -240,7 +314,17 @@ pub fn toggle_button(ui: &Ui, kit: &Kit, label: &str, value: &mut bool) -> bool 
 /// field, optional dim unit after it. `width` is the whole control (`0.0` =
 /// 160). Returns `true` when the value changed.
 #[allow(clippy::too_many_arguments)]
-pub fn number_input(ui: &Ui, kit: &Kit, id: &str, value: &mut i32, min: i32, max: i32, step: i32, unit: &str, width: f32) -> bool {
+pub fn number_input(
+    ui: &Ui,
+    kit: &Kit,
+    id: &str,
+    value: &mut i32,
+    min: i32,
+    max: i32,
+    step: i32,
+    unit: &str,
+    width: f32,
+) -> bool {
     let _ = kit;
     let _id = ui.push_id(id);
     let total = if width > 0.0 { width } else { 160.0 };
@@ -254,7 +338,10 @@ pub fn number_input(ui: &Ui, kit: &Kit, id: &str, value: &mut i32, min: i32, max
     ui.same_line();
     {
         let _w = ui.push_item_width(field_w);
-        let _pad = ui.push_style_var(StyleVar::FramePadding([size::PAD_X, (size::CONTROL - ui.text_line_height()) / 2.0]));
+        let _pad = ui.push_style_var(StyleVar::FramePadding([
+            size::PAD_X,
+            (size::CONTROL - ui.text_line_height()) / 2.0,
+        ]));
         if ui.input_scalar("##field", value).build() {
             *value = (*value).clamp(min, max);
             changed = true;
@@ -270,8 +357,11 @@ pub fn number_input(ui: &Ui, kit: &Kit, id: &str, value: &mut i32, min: i32, max
         ui.same_line_with_spacing(0.0, space::S);
         let p = ui.cursor_screen_pos();
         let ts = ui.calc_text_size(unit);
-        ui.get_window_draw_list()
-            .add_text([p[0], top + ((size::CONTROL - ts[1]) / 2.0).round()], fade(color::FG3, style_alpha(ui)), unit);
+        ui.get_window_draw_list().add_text(
+            [p[0], top + ((size::CONTROL - ts[1]) / 2.0).round()],
+            fade(color::FG3, style_alpha(ui)),
+            unit,
+        );
         ui.dummy([ts[0], size::CONTROL]);
     }
     changed

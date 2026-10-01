@@ -1,7 +1,7 @@
 use imgui::Ui;
 
 use crate::Kit;
-use crate::tokens::{color, space, Rgba};
+use crate::tokens::{Rgba, color, space};
 
 #[allow(unused_imports)]
 use super::*;
@@ -27,7 +27,10 @@ pub fn fade(c: Rgba, alpha: f32) -> Rgba {
 /// Ascent of `font` in screen pixels, for aligning texts of different sizes
 /// on one baseline (`y_small = y_big + ascent(big) - ascent(small)`).
 pub(super) fn ascent(ui: &Ui, font: imgui::FontId) -> f32 {
-    let a = ui.fonts().get_font(font).map_or(0.0, |f| f.ascent * f.scale);
+    let a = ui
+        .fonts()
+        .get_font(font)
+        .map_or(0.0, |f| f.ascent * f.scale);
     (a * ui.io().font_global_scale).round()
 }
 
@@ -36,9 +39,17 @@ pub(super) fn ascent(ui: &Ui, font: imgui::FontId) -> f32 {
 /// `p`; drawn with lines so it looks the same in every font and size.
 pub fn chevron(dl: &imgui::DrawListMut, p: [f32; 2], open: bool, col: Rgba) {
     let (a, b, c) = if open {
-        ([p[0] + 1.0, p[1] + 2.5], [p[0] + 4.0, p[1] + 5.5], [p[0] + 7.0, p[1] + 2.5])
+        (
+            [p[0] + 1.0, p[1] + 2.5],
+            [p[0] + 4.0, p[1] + 5.5],
+            [p[0] + 7.0, p[1] + 2.5],
+        )
     } else {
-        ([p[0] + 2.5, p[1] + 1.0], [p[0] + 5.5, p[1] + 4.0], [p[0] + 2.5, p[1] + 7.0])
+        (
+            [p[0] + 2.5, p[1] + 1.0],
+            [p[0] + 5.5, p[1] + 4.0],
+            [p[0] + 2.5, p[1] + 7.0],
+        )
     };
     dl.add_line(a, b, col).thickness(1.5).build();
     dl.add_line(b, c, col).thickness(1.5).build();
@@ -95,7 +106,11 @@ pub fn log_line(ui: &Ui, kit: &Kit, seconds: f32, message: &str, col: Option<Rgb
 
 /// "✓ Verified · MyGame" line under the game path input.
 pub fn verified_line(ui: &Ui, kit: &Kit, ok: bool, label: &str, detail: &str) {
-    let (mark, col) = if ok { ("✓", color::OK) } else { ("✕", color::ERR) };
+    let (mark, col) = if ok {
+        ("✓", color::OK)
+    } else {
+        ("✕", color::ERR)
+    };
     text_bold(ui, kit, &format!("{mark} {label}"), col);
     ui.same_line();
     ui.text_colored(color::FG3, format!("· {detail}"));

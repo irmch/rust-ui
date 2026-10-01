@@ -24,7 +24,7 @@ pub const fn hexa(rgb: u32, alpha: f32) -> Rgba {
 /// Colour tokens. The comment on each one names the `StyleColor` slots it
 /// feeds in [`crate::theme::apply`].
 pub mod color {
-    use super::{hex, hexa, Rgba};
+    use super::{Rgba, hex, hexa};
 
     /// WindowBg · ChildBg
     pub const BG0: Rgba = hex(0x121212);

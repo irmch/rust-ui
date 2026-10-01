@@ -6,9 +6,9 @@
 
 use imgui::{StyleVar, TableFlags, TableRowFlags, Ui};
 
+use crate::map_demo::MapPage;
 use imgui_kit::Kit;
 use imgui_kit::grid::{self, Grid};
-use crate::map_demo::MapPage;
 use imgui_kit::theme::ButtonKind;
 use imgui_kit::tokens::{color, size, space};
 use imgui_kit::widgets::{self as w, TagKind};
@@ -218,7 +218,13 @@ impl Gallery {
         w::text_muted(ui, "Loading…");
         ui.dummy([0.0, space::S]);
         w::panel(ui, "##empty", [0.0, 140.0], |ui| {
-            w::empty_state(ui, kit, Some("○"), "No bots connected", "Enable monitoring to find clients");
+            w::empty_state(
+                ui,
+                kit,
+                Some("○"),
+                "No bots connected",
+                "Enable monitoring to find clients",
+            );
         });
 
         grid::section_gap(ui);
@@ -241,7 +247,8 @@ impl Gallery {
     // 2 · Instances: table, progress -----------------------------------------
     fn instances(&mut self, ui: &Ui, kit: &Kit) {
         w::section(ui, kit, "Table · 32 px rows");
-        let flags = TableFlags::ROW_BG | TableFlags::BORDERS_INNER_H | TableFlags::SIZING_STRETCH_PROP;
+        let flags =
+            TableFlags::ROW_BG | TableFlags::BORDERS_INNER_H | TableFlags::SIZING_STRETCH_PROP;
         let _pad = ui.push_style_var(StyleVar::CellPadding([size::PAD_X, 0.0]));
         if let Some(_t) = ui.begin_table_with_flags("##instances", 5, flags) {
             for col in ["Slot", "Account", "Status", "Uptime", "CPU"] {
@@ -283,9 +290,15 @@ impl Gallery {
         w::section(ui, kit, "Progress");
         let t = ui.time() as f32;
         let anim = (t * 0.25).fract();
-        for (i, (label, frac)) in [("Idle", 0.0), ("Quarter", 0.25), ("Half", 0.5), ("Done", 1.0), ("Animated", anim)]
-            .into_iter()
-            .enumerate()
+        for (i, (label, frac)) in [
+            ("Idle", 0.0),
+            ("Quarter", 0.25),
+            ("Half", 0.5),
+            ("Done", 1.0),
+            ("Animated", anim),
+        ]
+        .into_iter()
+        .enumerate()
         {
             if i > 0 {
                 ui.dummy([0.0, space::S]);
@@ -302,8 +315,24 @@ impl Gallery {
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, space::S]));
             w::input(ui, kit, "login", "Login", &mut self.login, 320.0, false);
-            w::input(ui, kit, "password", "Password (empty, shows hint)", &mut self.password, 320.0, false);
-            w::input(ui, kit, "proxy", "host:port:user:pass", &mut self.proxy, 0.0, true);
+            w::input(
+                ui,
+                kit,
+                "password",
+                "Password (empty, shows hint)",
+                &mut self.password,
+                320.0,
+                false,
+            );
+            w::input(
+                ui,
+                kit,
+                "proxy",
+                "host:port:user:pass",
+                &mut self.proxy,
+                0.0,
+                true,
+            );
         }
         ui.dummy([0.0, space::S]);
         let (browse, open) = w::path_input(ui, kit, "gal_path", &mut self.path);
@@ -322,13 +351,37 @@ impl Gallery {
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, space::S]));
             w::caption(ui, kit, "Region");
-            w::combo(ui, kit, "##region_combo", &["Europe", "United States", "Asia", "Oceania"], &mut self.combo_idx, 240.0);
+            w::combo(
+                ui,
+                kit,
+                "##region_combo",
+                &["Europe", "United States", "Asia", "Oceania"],
+                &mut self.combo_idx,
+                240.0,
+            );
             w::caption(ui, kit, "Server · long list scrolls after 10 rows");
             let servers: Vec<String> = (1..=24).map(|i| format!("Server {i:02}")).collect();
             let refs: Vec<&str> = servers.iter().map(String::as_str).collect();
-            w::combo(ui, kit, "##server_combo", &refs, &mut self.server_idx, 240.0);
+            w::combo(
+                ui,
+                kit,
+                "##server_combo",
+                &refs,
+                &mut self.server_idx,
+                240.0,
+            );
             w::caption(ui, kit, "Cooldown");
-            w::number_input(ui, kit, "##cooldown", &mut self.count, 0, 600_000, 100, "ms", 200.0);
+            w::number_input(
+                ui,
+                kit,
+                "##cooldown",
+                &mut self.count,
+                0,
+                600_000,
+                100,
+                "ms",
+                200.0,
+            );
             w::caption(ui, kit, "Notes");
             w::textarea(ui, kit, "notes", &mut self.notes, 4, 480.0);
         }
@@ -338,9 +391,23 @@ impl Gallery {
         w::section(ui, kit, "Radio");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::radio(ui, kit, "Europe", Some("lowest ping"), &mut self.region, Region::Eu);
+            w::radio(
+                ui,
+                kit,
+                "Europe",
+                Some("lowest ping"),
+                &mut self.region,
+                Region::Eu,
+            );
             w::radio(ui, kit, "United States", None, &mut self.region, Region::Us);
-            w::radio(ui, kit, "Asia", Some("beta"), &mut self.region, Region::Asia);
+            w::radio(
+                ui,
+                kit,
+                "Asia",
+                Some("beta"),
+                &mut self.region,
+                Region::Asia,
+            );
         }
 
         grid::section_gap(ui);
@@ -360,7 +427,13 @@ impl Gallery {
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
             w::checkbox(ui, kit, "Checked", None, &mut self.checks[0]);
-            w::checkbox(ui, kit, "Unchecked with hint", Some("explains the option"), &mut self.checks[1]);
+            w::checkbox(
+                ui,
+                kit,
+                "Unchecked with hint",
+                Some("explains the option"),
+                &mut self.checks[1],
+            );
             w::checkbox(ui, kit, "Another one", None, &mut self.checks[2]);
         }
 
@@ -450,7 +523,13 @@ impl Gallery {
             if i > 0 {
                 ui.same_line_with_spacing(0.0, space::S);
             }
-            w::button_sized(ui, kit, kind, &format!("{label} 160"), [160.0, size::CONTROL]);
+            w::button_sized(
+                ui,
+                kit,
+                kind,
+                &format!("{label} 160"),
+                [160.0, size::CONTROL],
+            );
         }
 
         ui.dummy([0.0, space::M]);
@@ -514,18 +593,24 @@ impl Gallery {
         }
         w::tooltip_on_hover(ui, kit, "Opens a modal dialog");
         let mut confirmed = false;
-        w::modal(ui, kit, "Delete profile?##gallery_modal", Some([360.0, 0.0]), |ui| {
-            w::text_muted(ui, "This cannot be undone.");
-            ui.dummy([0.0, space::L]);
-            if w::button(ui, kit, ButtonKind::Secondary, "Cancel") {
-                ui.close_current_popup();
-            }
-            ui.same_line_with_spacing(0.0, space::S);
-            if w::button(ui, kit, ButtonKind::Danger, "Delete") {
-                confirmed = true;
-                ui.close_current_popup();
-            }
-        });
+        w::modal(
+            ui,
+            kit,
+            "Delete profile?##gallery_modal",
+            Some([360.0, 0.0]),
+            |ui| {
+                w::text_muted(ui, "This cannot be undone.");
+                ui.dummy([0.0, space::L]);
+                if w::button(ui, kit, ButtonKind::Secondary, "Cancel") {
+                    ui.close_current_popup();
+                }
+                ui.same_line_with_spacing(0.0, space::S);
+                if w::button(ui, kit, ButtonKind::Danger, "Delete") {
+                    confirmed = true;
+                    ui.close_current_popup();
+                }
+            },
+        );
         if confirmed {
             self.note("profile deleted (modal)");
         }
@@ -572,9 +657,19 @@ impl Gallery {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
             let mut st = kit.anim.settings();
             let mut changed = false;
-            changed |= w::switch(ui, kit, "Controls: checkbox, radio, switch", &mut st.controls);
+            changed |= w::switch(
+                ui,
+                kit,
+                "Controls: checkbox, radio, switch",
+                &mut st.controls,
+            );
             changed |= w::switch(ui, kit, "Tabs: sliding highlight", &mut st.tabs);
-            changed |= w::switch(ui, kit, "Pages: fade and slide on tab change", &mut st.pages);
+            changed |= w::switch(
+                ui,
+                kit,
+                "Pages: fade and slide on tab change",
+                &mut st.pages,
+            );
             changed |= w::labeled_slider(ui, kit, "Scale", &mut st.scale, 0.25, 4.0, 0.25, "×");
             if changed {
                 kit.anim.set(st);
@@ -585,16 +680,28 @@ impl Gallery {
 
         w::section(ui, kit, "Accordion · tabs");
         w::accordion_section(ui, kit, "Safety", None, true, |ui| {
-            w::checkbox(ui, kit, "Stop on player detection", None, &mut self.checks[0]);
+            w::checkbox(
+                ui,
+                kit,
+                "Stop on player detection",
+                None,
+                &mut self.checks[0],
+            );
             w::checkbox(ui, kit, "Logout on PK", None, &mut self.checks[1]);
         });
         w::accordion_section(ui, kit, "Advanced settings", Some("◆"), false, |ui| {
             w::text_muted(ui, "Hidden until opened; state is kept per imgui ID.");
         });
         ui.dummy([0.0, space::S]);
-        w::tabs(ui, kit, "##demo_tabs", &["List", "Map", "Logs"], |ui, idx| {
-            w::text_muted(ui, &format!("Contents of tab {idx} (stateful tabs)"));
-        });
+        w::tabs(
+            ui,
+            kit,
+            "##demo_tabs",
+            &["List", "Map", "Logs"],
+            |ui, idx| {
+                w::text_muted(ui, &format!("Contents of tab {idx} (stateful tabs)"));
+            },
+        );
         w::divider(ui);
 
         grid::section_gap(ui);
@@ -679,11 +786,17 @@ impl Gallery {
         grid::section_gap(ui);
 
         w::section(ui, kit, "Panel header + panel");
-        w::panel_header(ui, kit, "Events", &[w::button_small_width(ui, kit, "Clear")], |ui| {
-            if w::button_small(ui, kit, ButtonKind::Secondary, "Clear") {
-                self.events.clear();
-            }
-        });
+        w::panel_header(
+            ui,
+            kit,
+            "Events",
+            &[w::button_small_width(ui, kit, "Clear")],
+            |ui| {
+                if w::button_small(ui, kit, ButtonKind::Secondary, "Clear") {
+                    self.events.clear();
+                }
+            },
+        );
         ui.dummy([0.0, space::M - space::S]);
         w::panel(ui, "##events", [0.0, 6.0 * 16.0 + 2.0 * space::S], |ui| {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));

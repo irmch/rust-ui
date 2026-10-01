@@ -4,7 +4,7 @@
 //! uploads finished tiles, a few per frame.
 
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread::{self, JoinHandle};
 
 use glow::HasContext;
@@ -48,13 +48,26 @@ impl TileLoader {
                         LayerId::Map => region_pixels(&asset_dir, tile),
                         LayerId::Geo => (256, 256, map_demo::geo_pixels(tile)),
                     };
-                    if done_tx.send(Done { layer, tile, width, height, rgba }).is_err() {
+                    if done_tx
+                        .send(Done {
+                            layer,
+                            tile,
+                            width,
+                            height,
+                            rgba,
+                        })
+                        .is_err()
+                    {
                         break;
                     }
                 }
             })
             .expect("spawn tile loader");
-        Self { requests: req_tx, done: done_rx, _worker: worker }
+        Self {
+            requests: req_tx,
+            done: done_rx,
+            _worker: worker,
+        }
     }
 
     /// Hands every tile the view marked pending to the worker.
@@ -87,7 +100,9 @@ impl TileLoader {
 /// otherwise the synthetic terrain of the demo.
 fn region_pixels(asset_dir: &std::path::Path, tile: [i32; 2]) -> (i32, i32, Vec<u8>) {
     let from_file = ["png", "jpg"].iter().find_map(|ext| {
-        let path = asset_dir.join("map").join(format!("{}_{}.{ext}", tile[0], tile[1]));
+        let path = asset_dir
+            .join("map")
+            .join(format!("{}_{}.{ext}", tile[0], tile[1]));
         image::open(&path).ok().map(|img| img.to_rgba8())
     });
     match from_file {
@@ -111,10 +126,26 @@ pub fn upload_rgba(gl: &glow::Context, w: i32, h: i32, pixels: &[u8]) -> Texture
     unsafe {
         let tex = gl.create_texture().expect("create texture");
         gl.bind_texture(glow::TEXTURE_2D, Some(tex));
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_MIN_FILTER,
+            glow::LINEAR as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_MAG_FILTER,
+            glow::NEAREST as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_WRAP_S,
+            glow::CLAMP_TO_EDGE as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_WRAP_T,
+            glow::CLAMP_TO_EDGE as i32,
+        );
         gl.tex_image_2d(
             glow::TEXTURE_2D,
             0,

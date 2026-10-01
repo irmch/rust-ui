@@ -5,10 +5,10 @@ use std::collections::VecDeque;
 
 use imgui::{Condition, Key, StyleVar, Ui, WindowFlags};
 
-use imgui_kit::anim;
-use imgui_kit::Kit;
 use crate::gallery::Gallery;
 use crate::settings::Settings;
+use imgui_kit::Kit;
+use imgui_kit::anim;
 use imgui_kit::grid::{self, Grid, Pane};
 use imgui_kit::theme::ButtonKind;
 use imgui_kit::tokens::{color, size, space};
@@ -85,7 +85,16 @@ pub enum LaunchEvent {
     Window(TitleBarAction),
 }
 
-const TABS: [&str; 8] = ["Launch", "Accounts", "Instances", "Proxies", "Resources", "Tools", "Settings", "Map"];
+const TABS: [&str; 8] = [
+    "Launch",
+    "Accounts",
+    "Instances",
+    "Proxies",
+    "Resources",
+    "Tools",
+    "Settings",
+    "Map",
+];
 
 impl LaunchScreen {
     /// Draws the screen as a borderless full-display window and returns the
@@ -116,7 +125,6 @@ impl LaunchScreen {
     }
 
     fn body(&mut self, ui: &Ui, kit: &Kit, width: f32, events: &mut Vec<LaunchEvent>) {
-
         // 1. title bar ---------------------------------------------------
         let act = w::title_bar(ui, kit, "Launcher", TABS[self.tab], &TABS, &mut self.tab);
         if act != TitleBarAction::None {
@@ -151,10 +159,30 @@ impl LaunchScreen {
             grid::button_width(ui, &launch_label)
         };
         let items = [
-            StatItem { caption: "Status", value: self.status, unit: "", color: color::OK },
-            StatItem { caption: "Next slot", value: "01", unit: "", color: color::FG },
-            StatItem { caption: "Windows", value: &windows, unit: "", color: color::FG },
-            StatItem { caption: "Stagger", value: &stagger, unit: "ms", color: color::FG },
+            StatItem {
+                caption: "Status",
+                value: self.status,
+                unit: "",
+                color: color::OK,
+            },
+            StatItem {
+                caption: "Next slot",
+                value: "01",
+                unit: "",
+                color: color::FG,
+            },
+            StatItem {
+                caption: "Windows",
+                value: &windows,
+                unit: "",
+                color: color::FG,
+            },
+            StatItem {
+                caption: "Stagger",
+                value: &stagger,
+                unit: "ms",
+                color: color::FG,
+            },
         ];
         w::status_strip(ui, kit, &items, &[stop_w, launch_w], |ui| {
             if w::button(ui, kit, ButtonKind::Danger, "Stop all") {
@@ -191,7 +219,9 @@ impl LaunchScreen {
             let tab = self.tab;
             // The map fills its page and takes the wheel itself.
             let flags = if tab == 7 {
-                WindowFlags::ALWAYS_USE_WINDOW_PADDING | WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE
+                WindowFlags::ALWAYS_USE_WINDOW_PADDING
+                    | WindowFlags::NO_SCROLLBAR
+                    | WindowFlags::NO_SCROLL_WITH_MOUSE
             } else {
                 WindowFlags::ALWAYS_USE_WINDOW_PADDING
             };
@@ -203,7 +233,6 @@ impl LaunchScreen {
     }
 
     fn form_pane(&mut self, ui: &Ui, kit: &Kit, events: &mut Vec<LaunchEvent>) {
-
         // GAME PATH
         w::section(ui, kit, "Game path");
         let (browse, open) = w::path_input(ui, kit, "game_path", &mut self.game_path);
@@ -213,7 +242,17 @@ impl LaunchScreen {
         if open {
             events.push(LaunchEvent::OpenFolder);
         }
-        w::verified_line(ui, kit, self.path_ok, if self.path_ok { "Verified" } else { "Not found" }, "MyGame");
+        w::verified_line(
+            ui,
+            kit,
+            self.path_ok,
+            if self.path_ok {
+                "Verified"
+            } else {
+                "Not found"
+            },
+            "MyGame",
+        );
 
         grid::section_gap(ui);
 
@@ -221,12 +260,48 @@ impl LaunchScreen {
         w::section(ui, kit, "Options");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::checkbox(ui, kit, "Auto-restart windows that close", None, &mut self.auto_restart);
-            w::checkbox(ui, kit, "Safe mode", Some("extra compatibility"), &mut self.safe_mode);
-            w::checkbox(ui, kit, "Don't spoof GPU", Some("use real adapter"), &mut self.real_gpu);
-            w::checkbox(ui, kit, "Outdated GPU driver dialog", None, &mut self.gpu_dialog);
-            w::checkbox(ui, kit, "Buffer Underflow Fix", None, &mut self.underflow_fix);
-            w::checkbox(ui, kit, "Spoof hash for NEW windows", None, &mut self.spoof_hash);
+            w::checkbox(
+                ui,
+                kit,
+                "Auto-restart windows that close",
+                None,
+                &mut self.auto_restart,
+            );
+            w::checkbox(
+                ui,
+                kit,
+                "Safe mode",
+                Some("extra compatibility"),
+                &mut self.safe_mode,
+            );
+            w::checkbox(
+                ui,
+                kit,
+                "Don't spoof GPU",
+                Some("use real adapter"),
+                &mut self.real_gpu,
+            );
+            w::checkbox(
+                ui,
+                kit,
+                "Outdated GPU driver dialog",
+                None,
+                &mut self.gpu_dialog,
+            );
+            w::checkbox(
+                ui,
+                kit,
+                "Buffer Underflow Fix",
+                None,
+                &mut self.underflow_fix,
+            );
+            w::checkbox(
+                ui,
+                kit,
+                "Spoof hash for NEW windows",
+                None,
+                &mut self.spoof_hash,
+            );
         }
 
         grid::section_gap(ui);
@@ -235,8 +310,26 @@ impl LaunchScreen {
         w::section(ui, kit, "Parameters");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::labeled_slider(ui, kit, "Windows", &mut self.windows, 1.0, 12.0, 1.0, "/ 12");
-            w::labeled_slider(ui, kit, "Stagger", &mut self.stagger_ms, 0.0, 2000.0, 50.0, "ms");
+            w::labeled_slider(
+                ui,
+                kit,
+                "Windows",
+                &mut self.windows,
+                1.0,
+                12.0,
+                1.0,
+                "/ 12",
+            );
+            w::labeled_slider(
+                ui,
+                kit,
+                "Stagger",
+                &mut self.stagger_ms,
+                0.0,
+                2000.0,
+                50.0,
+                "ms",
+            );
         }
 
         // CTA pinned to the bottom of the pane
@@ -297,7 +390,11 @@ impl LaunchScreen {
         }
         if ui.is_key_pressed_no_repeat(Key::Tab) {
             let n = TABS.len();
-            self.tab = if io.key_shift { (self.tab + n - 1) % n } else { (self.tab + 1) % n };
+            self.tab = if io.key_shift {
+                (self.tab + n - 1) % n
+            } else {
+                (self.tab + 1) % n
+            };
         }
         if ui.is_key_pressed_no_repeat(Key::Enter) {
             events.push(LaunchEvent::Launch);
@@ -328,7 +425,9 @@ impl LaunchScreen {
         self.windows = s.get_or("windows", self.windows).clamp(1.0, 12.0);
         self.stagger_ms = s.get_or("stagger_ms", self.stagger_ms).clamp(0.0, 2000.0);
         let map = &mut self.gallery.map;
-        map.view.zoom = s.get_or("map.zoom", map.view.zoom).clamp(map.view.min_zoom, map.view.max_zoom);
+        map.view.zoom = s
+            .get_or("map.zoom", map.view.zoom)
+            .clamp(map.view.min_zoom, map.view.max_zoom);
         map.view.follow = s.get_or("map.follow", map.view.follow);
         if let (Some(x), Some(y)) = (s.get("map.center_x"), s.get("map.center_y")) {
             map.view.center = [x, y];
@@ -404,7 +503,10 @@ impl LaunchScreen {
         match ev {
             LaunchEvent::Launch => {
                 let n = self.windows as i32;
-                self.log(format!("Launching {n} windows, stagger {} ms", self.stagger_ms as i32));
+                self.log(format!(
+                    "Launching {n} windows, stagger {} ms",
+                    self.stagger_ms as i32
+                ));
                 for i in 1..=n {
                     self.log(format!("Window {i}/{n} started on proxy {i}"));
                 }

@@ -26,7 +26,10 @@ pub fn asset_dir() -> PathBuf {
     }
     candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"));
     candidates.push(PathBuf::from("assets"));
-    candidates.into_iter().find(|p| p.is_dir()).unwrap_or_else(|| PathBuf::from("assets"))
+    candidates
+        .into_iter()
+        .find(|p| p.is_dir())
+        .unwrap_or_else(|| PathBuf::from("assets"))
 }
 
 /// Directory for settings and logs: next to the executable.

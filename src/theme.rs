@@ -3,7 +3,7 @@
 
 use imgui::{ColorStackToken, Context, Style, StyleColor, Ui};
 
-use crate::tokens::{color, size, space, Rgba};
+use crate::tokens::{Rgba, color, size, space};
 
 /// Writes every style var and colour of the kit into `style`.
 /// Call once after creating the context, before loading fonts is fine too.
