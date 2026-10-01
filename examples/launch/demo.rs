@@ -1,6 +1,8 @@
 //! The reference "Launch" screen (artboard 06) assembled from the kit.
 //! Draw it with [`LaunchScreen::draw`] inside your frame loop.
 
+use std::collections::VecDeque;
+
 use imgui::{Condition, StyleVar, Ui, WindowFlags};
 
 use imgui_kit::anim;
@@ -24,7 +26,8 @@ pub struct LaunchScreen {
     pub spoof_hash: bool,
     pub windows: f32,
     pub stagger_ms: f32,
-    pub log: Vec<(f32, String)>,
+    /// Status log, newest last, at most [`LOG_CAP`] lines.
+    pub log: VecDeque<(f32, String)>,
     pub status: &'static str,
     /// State of the widget gallery on the other tabs.
     pub gallery: Gallery,
@@ -48,13 +51,13 @@ impl Default for LaunchScreen {
             spoof_hash: true,
             windows: 6.0,
             stagger_ms: 350.0,
-            log: vec![
+            log: VecDeque::from(vec![
                 (0.000, "Game path verified".into()),
                 (0.084, "6 accounts ready".into()),
                 (0.168, "Per-window proxies assigned".into()),
                 (0.252, "Auto-restart enabled".into()),
                 (0.336, "Ready to launch".into()),
-            ],
+            ]),
             status: "Ready",
             gallery: Gallery::default(),
             page_tab: 0,
@@ -64,10 +67,14 @@ impl Default for LaunchScreen {
     }
 }
 
-/// Events the screen reports back to the application.
+/// Lines kept in the status log; older ones are dropped.
+pub const LOG_CAP: usize = 2000;
+
+/// Events the screen reports back to the application. A frame can produce
+/// several (a title-bar action and a button on the same frame), so
+/// [`LaunchScreen::draw`] returns all of them in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LaunchEvent {
-    None,
     Launch,
     StopAll,
     Browse,
@@ -80,9 +87,10 @@ pub enum LaunchEvent {
 const TABS: [&str; 8] = ["Launch", "Accounts", "Instances", "Proxies", "Resources", "Tools", "Settings", "Map"];
 
 impl LaunchScreen {
-    /// Draws the screen as a borderless full-display window.
-    pub fn draw(&mut self, ui: &Ui, kit: &Kit, display_size: [f32; 2]) -> LaunchEvent {
-        let mut ev = LaunchEvent::None;
+    /// Draws the screen as a borderless full-display window and returns the
+    /// events it produced this frame (usually none).
+    pub fn draw(&mut self, ui: &Ui, kit: &Kit, display_size: [f32; 2]) -> Vec<LaunchEvent> {
+        let mut events = Vec::new();
         let _pad = ui.push_style_var(StyleVar::WindowPadding([0.0, 0.0]));
         let _rounding = ui.push_style_var(StyleVar::WindowRounding(0.0));
         let _border = ui.push_style_var(StyleVar::WindowBorderSize(0.0));
@@ -97,19 +105,20 @@ impl LaunchScreen {
                     | WindowFlags::NO_NAV_FOCUS,
             )
             .build(|| {
-                ev = self.body(ui, kit, display_size[0]);
+                self.body(ui, kit, display_size[0], &mut events);
             });
-        self.react(ev);
-        ev
+        for ev in &events {
+            self.react(*ev);
+        }
+        events
     }
 
-    fn body(&mut self, ui: &Ui, kit: &Kit, width: f32) -> LaunchEvent {
-        let mut ev = LaunchEvent::None;
+    fn body(&mut self, ui: &Ui, kit: &Kit, width: f32, events: &mut Vec<LaunchEvent>) {
 
         // 1. title bar ---------------------------------------------------
         let act = w::title_bar(ui, kit, "PoEMulti", TABS[self.tab], &TABS, &mut self.tab);
         if act != TitleBarAction::None {
-            ev = LaunchEvent::Window(act);
+            events.push(LaunchEvent::Window(act));
         }
 
         // page transition: restart on tab change, advance while enabled
@@ -147,11 +156,11 @@ impl LaunchScreen {
         ];
         w::status_strip(ui, kit, &items, &[stop_w, launch_w], |ui| {
             if w::button(ui, kit, ButtonKind::Danger, "Stop all") {
-                ev = LaunchEvent::StopAll;
+                events.push(LaunchEvent::StopAll);
             }
             ui.same_line();
             if w::button(ui, kit, ButtonKind::Primary, &launch_label) {
-                ev = LaunchEvent::Launch;
+                events.push(LaunchEvent::Launch);
             }
         });
 
@@ -170,14 +179,9 @@ impl LaunchScreen {
                 .flags(WindowFlags::ALWAYS_USE_WINDOW_PADDING | WindowFlags::NO_SCROLLBAR)
                 .build(|| {
                     let span = Grid::form_span(width);
-                    grid.panes(ui, span, |ui, pane| {
-                        let e = match pane {
-                            Pane::Left => self.form_pane(ui, kit),
-                            Pane::Right => self.log_pane(ui, kit),
-                        };
-                        if let Some(e) = e {
-                            ev = e;
-                        }
+                    grid.panes(ui, span, |ui, pane| match pane {
+                        Pane::Left => self.form_pane(ui, kit, events),
+                        Pane::Right => self.log_pane(ui, kit, events),
                     });
                 });
         } else {
@@ -194,20 +198,18 @@ impl LaunchScreen {
                 .flags(flags)
                 .build(|| self.gallery.draw(ui, kit, tab));
         }
-        ev
     }
 
-    fn form_pane(&mut self, ui: &Ui, kit: &Kit) -> Option<LaunchEvent> {
-        let mut ev = None;
+    fn form_pane(&mut self, ui: &Ui, kit: &Kit, events: &mut Vec<LaunchEvent>) {
 
         // GAME PATH
         w::section(ui, kit, "Game path");
         let (browse, open) = w::path_input(ui, kit, "game_path", &mut self.game_path);
         if browse {
-            ev = Some(LaunchEvent::Browse);
+            events.push(LaunchEvent::Browse);
         }
         if open {
-            ev = Some(LaunchEvent::OpenFolder);
+            events.push(LaunchEvent::OpenFolder);
         }
         w::verified_line(ui, kit, self.path_ok, if self.path_ok { "Verified" } else { "Not found" }, "Path of Exile 2");
 
@@ -239,32 +241,33 @@ impl LaunchScreen {
         grid::push_to_bottom(ui, size::CTA, 0.0);
         let label = format!("Launch {} windows", self.windows as i32);
         if w::cta(ui, kit, ButtonKind::Primary, &label) {
-            ev = Some(LaunchEvent::Launch);
+            events.push(LaunchEvent::Launch);
         }
-        ev
     }
 
-    fn log_pane(&mut self, ui: &Ui, kit: &Kit) -> Option<LaunchEvent> {
-        let mut ev = None;
+    fn log_pane(&mut self, ui: &Ui, kit: &Kit, events: &mut Vec<LaunchEvent>) {
         let copy_w = w::button_small_width(ui, kit, "Copy");
         let save_w = w::button_small_width(ui, kit, "Save");
         w::panel_header(ui, kit, "Status", &[copy_w, save_w], |ui| {
             if w::button_small(ui, kit, ButtonKind::Secondary, "Copy") {
-                ev = Some(LaunchEvent::CopyLog);
+                events.push(LaunchEvent::CopyLog);
             }
             ui.same_line();
             if w::button_small(ui, kit, ButtonKind::Secondary, "Save") {
-                ev = Some(LaunchEvent::SaveLog);
+                events.push(LaunchEvent::SaveLog);
             }
         });
         ui.dummy([0.0, space::M - space::S]);
-        w::log_panel(ui, "##log", [0.0, 0.0], |ui| {
-            let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            for (t, m) in &self.log {
-                w::log_line(ui, kit, *t, m, None);
-            }
+        // Clipped: only the rows in view are submitted, whatever the log size.
+        let row_h = {
+            let _f = ui.push_font(kit.fonts.mono12);
+            ui.text_line_height()
+        };
+        let log = &self.log;
+        w::log_list(ui, "##log", [0.0, 0.0], log.len(), row_h, |ui, i| {
+            let (t, m) = &log[i];
+            w::log_line(ui, kit, *t, m, None);
         });
-        ev
     }
 
     /// Whether the screen changes without input right now: a page
@@ -275,10 +278,14 @@ impl LaunchScreen {
         self.page_t < 1.0 || self.gallery.is_animating(self.tab)
     }
 
-    /// Appends a line to the status log, stamped after the last one.
+    /// Appends a line to the status log, stamped after the last one; the
+    /// oldest line goes once [`LOG_CAP`] is reached.
     pub fn log(&mut self, message: impl Into<String>) {
-        let t = self.log.last().map_or(0.0, |(t, _)| t + 0.084);
-        self.log.push((t, message.into()));
+        let t = self.log.back().map_or(0.0, |(t, _)| t + 0.084);
+        self.log.push_back((t, message.into()));
+        while self.log.len() > LOG_CAP {
+            self.log.pop_front();
+        }
     }
 
     /// Reacts to the screen's own events so the demo feels alive: `Launch`

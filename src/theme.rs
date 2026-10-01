@@ -36,7 +36,6 @@ pub fn apply(style: &mut Style) {
     style.window_title_align = [0.0, 0.5];
     style.button_text_align = [0.5, 0.5];
     style.selectable_text_align = [0.0, 0.5];
-    style.window_min_size = [960.0, 640.0];
     style.anti_aliased_lines = true;
     style.anti_aliased_fill = true;
 

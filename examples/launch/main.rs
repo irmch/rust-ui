@@ -67,6 +67,8 @@ fn main() {
     let mut imgui = imgui::Context::create();
     imgui.set_ini_filename(None);
     theme::apply_to(&mut imgui);
+    // An app decision, not the kit's: the launcher never shrinks below this.
+    imgui.style_mut().window_min_size = [960.0, 640.0];
 
     let mut platform = WinitPlatform::init(&mut imgui);
     platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Default);
@@ -154,7 +156,7 @@ fn main() {
                 let ui_start = Instant::now();
                 let ui = imgui.frame();
                 let display = ui.io().display_size;
-                let ev = screen.draw(ui, &kit, display);
+                let events = screen.draw(ui, &kit, display);
                 // Keep frames coming while something moves, and while a text
                 // field has focus: imgui trickles queued key events one per
                 // frame (a fast burst would lose its tail otherwise) and the
@@ -191,14 +193,15 @@ fn main() {
                     // tell imgui ourselves or it keeps the button "held".
                     imgui.io_mut().add_mouse_button_event(MouseButton::Left, false);
                 }
-                match ev {
-                    LaunchEvent::None => {}
-                    LaunchEvent::Window(TitleBarAction::Close) => target.exit(),
-                    LaunchEvent::Window(TitleBarAction::Minimize) => window.set_minimized(true),
-                    LaunchEvent::Window(TitleBarAction::Maximize) => {
-                        window.set_maximized(!window.is_maximized())
+                for ev in events {
+                    match ev {
+                        LaunchEvent::Window(TitleBarAction::Close) => target.exit(),
+                        LaunchEvent::Window(TitleBarAction::Minimize) => window.set_minimized(true),
+                        LaunchEvent::Window(TitleBarAction::Maximize) => {
+                            window.set_maximized(!window.is_maximized())
+                        }
+                        other => println!("event: {other:?}"),
                     }
-                    other => println!("event: {other:?}"),
                 }
             }
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => target.exit(),

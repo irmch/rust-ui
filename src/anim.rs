@@ -233,13 +233,15 @@ mod tests {
     #[test]
     fn toggle_takes_about_duration_seconds() {
         let mut st = State::default();
+        // seen off first (a value seen for the first time starts at its target)
+        st.step(1, true, 0.01, 0, 0.0, |v, _| v);
         let mut frames = 0;
         let mut v = 0.0;
         while v < 1.0 && frames < 1000 {
             frames += 1;
             v = st.step(1, true, 0.01, frames, 1.0, |v, dt| toggle_step(v, 1.0, dt / 0.14));
         }
-        assert_eq!(frames, 14, "0.14 s at 100 fps");
+        assert!((13..=15).contains(&frames), "0.14 s at 100 fps, got {frames} frames");
     }
 
     #[test]

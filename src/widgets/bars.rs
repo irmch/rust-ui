@@ -245,6 +245,24 @@ pub fn log_panel(ui: &Ui, id: &str, size_: [f32; 2], body: impl FnOnce(&Ui)) {
     });
 }
 
+/// [`log_panel`] for long logs: only the rows in view are submitted (imgui
+/// list clipper), so a log of 100k lines costs the same as one of 30.
+/// `row_h` is the height of one row (measure it with the row's font pushed)
+/// and `row(ui, i)` draws row `i`. Follows appended rows like [`log_panel`].
+pub fn log_list(ui: &Ui, id: &str, size_: [f32; 2], rows: usize, row_h: f32, mut row: impl FnMut(&Ui, usize)) {
+    panel(ui, id, size_, |ui| {
+        let at_bottom = ui.scroll_y() >= ui.scroll_max_y() - 1.0;
+        let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
+        let clipper = imgui::ListClipper::new(rows as i32).items_height(row_h).begin(ui);
+        for i in clipper.iter() {
+            row(ui, i as usize);
+        }
+        if at_bottom {
+            ui.set_scroll_here_y_with_ratio(1.0);
+        }
+    });
+}
+
 /// Card: bg-1, 1 px line, 16 px padding. `size` as in [`panel`]: `0.0`
 /// fills the remaining width / height (imgui child windows cannot size
 /// themselves to their content, so give cards in a row an explicit height).
