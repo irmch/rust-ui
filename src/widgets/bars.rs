@@ -142,6 +142,55 @@ pub fn window_control(ui: &Ui, which: TitleBarAction) -> bool {
     clicked
 }
 
+/// Left-aligned row of tabs with the title bar's sliding highlight, for a
+/// second navigation level inside a page (sub-tabs of a detail screen).
+/// 32 px tall at the current cursor; returns `true` when the active tab
+/// changed this frame. Labels may contain icon-font glyphs.
+pub fn tab_strip(ui: &Ui, kit: &Kit, id: &str, tabs: &[&str], active: &mut usize) -> bool {
+    let _id = ui.push_id(id);
+    let row = grid::Row::start(ui, size::CONTROL);
+    let widths: Vec<f32> = tabs
+        .iter()
+        .map(|t| {
+            let _f = ui.push_font(kit.fonts.mono13b);
+            ui.calc_text_size(t)[0] + 2.0 * size::PAD_X
+        })
+        .collect();
+    let slide = kit.anim.settings().tabs;
+    if slide {
+        let (mut x, mut hl_x, mut hl_w) = (row.x, row.x, widths.first().copied().unwrap_or(0.0));
+        for (i, w) in widths.iter().enumerate() {
+            if i == *active {
+                hl_x = x;
+                hl_w = *w;
+            }
+            x += w + space::XS;
+        }
+        let hx = kit.anim.approach(ui, anim::key(ui, "##strip_hl_x"), hl_x, anim::TABS, true);
+        let hw = kit.anim.approach(ui, anim::key(ui, "##strip_hl_w"), hl_w, anim::TABS, true);
+        let wp = ui.window_pos();
+        let sy = ui.scroll_y();
+        let a = [wp[0] + hx, wp[1] + row.top - sy];
+        ui.get_window_draw_list()
+            .add_rect(a, [a[0] + hw, a[1] + size::CONTROL], fade(color::BG3, style_alpha(ui)))
+            .rounding(size::RADIUS)
+            .filled(true)
+            .build();
+    }
+    let mut changed = false;
+    let mut x = row.x;
+    for (i, (t, w)) in tabs.iter().zip(&widths).enumerate() {
+        ui.set_cursor_pos([x, row.top]);
+        if tab_ex(ui, kit, t, *w, i == *active, !slide) && i != *active {
+            *active = i;
+            changed = true;
+        }
+        x += w + space::XS;
+    }
+    row.end(ui);
+    changed
+}
+
 /// One tab of the title bar: 32 px, bg-3 + bold when active, fg-2 otherwise.
 pub fn tab(ui: &Ui, kit: &Kit, label: &str, width: f32, active: bool) -> bool {
     tab_ex(ui, kit, label, width, active, true)

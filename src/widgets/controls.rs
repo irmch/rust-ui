@@ -40,6 +40,8 @@ pub fn radio<T: PartialEq + Copy>(
 
 pub(super) fn check_like(ui: &Ui, kit: &Kit, label: &str, hint: Option<&str>, value: &mut bool, round: bool) -> bool {
     let _id = ui.push_id(label);
+    // imgui convention: "Shown##unique" shows "Shown", "##only_id" shows nothing
+    let label = visible_label(label);
     let row_h = size::CONTROL;
     let b = size::CHECK;
     let label_w = {
@@ -109,6 +111,7 @@ pub(super) fn check_like(ui: &Ui, kit: &Kit, label: &str, hint: Option<&str>, va
 /// 36 × 20 switch with a bold label (artboard 03 · section 09).
 pub fn switch(ui: &Ui, kit: &Kit, label: &str, value: &mut bool) -> bool {
     let _id = ui.push_id(label);
+    let label = visible_label(label);
     let [sw, sh] = size::SWITCH;
     let row_h = size::CONTROL;
     let label_w = {
@@ -142,4 +145,9 @@ pub fn switch(ui: &Ui, kit: &Kit, label: &str, value: &mut bool) -> bool {
     let ty = p[1] + ((row_h - ui.text_line_height()) / 2.0).round();
     dl.add_text([p[0] + sw + space::M, ty], fade(color::FG, al), label);
     clicked
+}
+
+/// The part of an imgui label before `##` (the rest is only the ID).
+fn visible_label(label: &str) -> &str {
+    label.split("##").next().unwrap_or("")
 }
