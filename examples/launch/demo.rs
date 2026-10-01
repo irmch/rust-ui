@@ -4,7 +4,7 @@
 use imgui::{Condition, StyleVar, Ui, WindowFlags};
 
 use imgui_kit::anim;
-use imgui_kit::fonts::Fonts;
+use imgui_kit::Kit;
 use crate::gallery::Gallery;
 use imgui_kit::grid::{self, Grid, Pane};
 use imgui_kit::theme::ButtonKind;
@@ -81,7 +81,7 @@ const TABS: [&str; 8] = ["Launch", "Accounts", "Instances", "Proxies", "Resource
 
 impl LaunchScreen {
     /// Draws the screen as a borderless full-display window.
-    pub fn draw(&mut self, ui: &Ui, f: &Fonts, display_size: [f32; 2]) -> LaunchEvent {
+    pub fn draw(&mut self, ui: &Ui, kit: &Kit, display_size: [f32; 2]) -> LaunchEvent {
         let mut ev = LaunchEvent::None;
         let _pad = ui.push_style_var(StyleVar::WindowPadding([0.0, 0.0]));
         let _rounding = ui.push_style_var(StyleVar::WindowRounding(0.0));
@@ -97,17 +97,17 @@ impl LaunchScreen {
                     | WindowFlags::NO_NAV_FOCUS,
             )
             .build(|| {
-                ev = self.body(ui, f, display_size[0]);
+                ev = self.body(ui, kit, display_size[0]);
             });
         self.react(ev);
         ev
     }
 
-    fn body(&mut self, ui: &Ui, f: &Fonts, width: f32) -> LaunchEvent {
+    fn body(&mut self, ui: &Ui, kit: &Kit, width: f32) -> LaunchEvent {
         let mut ev = LaunchEvent::None;
 
         // 1. title bar ---------------------------------------------------
-        let act = w::title_bar(ui, f, "PoEMulti", TABS[self.tab], &TABS, &mut self.tab);
+        let act = w::title_bar(ui, kit, "PoEMulti", TABS[self.tab], &TABS, &mut self.tab);
         if act != TitleBarAction::None {
             ev = LaunchEvent::Window(act);
         }
@@ -118,7 +118,7 @@ impl LaunchScreen {
             self.page_tab = self.tab;
             self.page_t = 0.0;
         }
-        let st = anim::settings();
+        let st = kit.anim.settings();
         self.page_t = if st.pages {
             let d = (anim::PAGE * st.scale).max(1e-3);
             (self.page_t + ui.io().delta_time.min(0.1) / d).min(1.0)
@@ -132,11 +132,11 @@ impl LaunchScreen {
         let stagger = format!("{}", self.stagger_ms as i32);
         let launch_label = format!("Launch {} windows", self.windows as i32);
         let stop_w = {
-            let _f = ui.push_font(f.mono13b);
+            let _f = ui.push_font(kit.fonts.mono13b);
             grid::button_width(ui, "Stop all")
         };
         let launch_w = {
-            let _f = ui.push_font(f.mono13b);
+            let _f = ui.push_font(kit.fonts.mono13b);
             grid::button_width(ui, &launch_label)
         };
         let items = [
@@ -145,12 +145,12 @@ impl LaunchScreen {
             StatItem { caption: "Windows", value: &windows, unit: "", color: color::FG },
             StatItem { caption: "Stagger", value: &stagger, unit: "ms", color: color::FG },
         ];
-        w::status_strip(ui, f, &items, &[stop_w, launch_w], |ui| {
-            if w::button(ui, f, ButtonKind::Danger, "Stop all") {
+        w::status_strip(ui, kit, &items, &[stop_w, launch_w], |ui| {
+            if w::button(ui, kit, ButtonKind::Danger, "Stop all") {
                 ev = LaunchEvent::StopAll;
             }
             ui.same_line();
-            if w::button(ui, f, ButtonKind::Primary, &launch_label) {
+            if w::button(ui, kit, ButtonKind::Primary, &launch_label) {
                 ev = LaunchEvent::Launch;
             }
         });
@@ -172,8 +172,8 @@ impl LaunchScreen {
                     let span = Grid::form_span(width);
                     grid.panes(ui, span, |ui, pane| {
                         let e = match pane {
-                            Pane::Left => self.form_pane(ui, f),
-                            Pane::Right => self.log_pane(ui, f),
+                            Pane::Left => self.form_pane(ui, kit),
+                            Pane::Right => self.log_pane(ui, kit),
                         };
                         if let Some(e) = e {
                             ev = e;
@@ -192,68 +192,68 @@ impl LaunchScreen {
             ui.child_window("##gallery")
                 .size([content_w, 0.0])
                 .flags(flags)
-                .build(|| self.gallery.draw(ui, f, tab));
+                .build(|| self.gallery.draw(ui, kit, tab));
         }
         ev
     }
 
-    fn form_pane(&mut self, ui: &Ui, f: &Fonts) -> Option<LaunchEvent> {
+    fn form_pane(&mut self, ui: &Ui, kit: &Kit) -> Option<LaunchEvent> {
         let mut ev = None;
 
         // GAME PATH
-        w::section(ui, f, "Game path");
-        let (browse, open) = w::path_input(ui, f, "game_path", &mut self.game_path);
+        w::section(ui, kit, "Game path");
+        let (browse, open) = w::path_input(ui, kit, "game_path", &mut self.game_path);
         if browse {
             ev = Some(LaunchEvent::Browse);
         }
         if open {
             ev = Some(LaunchEvent::OpenFolder);
         }
-        w::verified_line(ui, f, self.path_ok, if self.path_ok { "Verified" } else { "Not found" }, "Path of Exile 2");
+        w::verified_line(ui, kit, self.path_ok, if self.path_ok { "Verified" } else { "Not found" }, "Path of Exile 2");
 
         grid::section_gap(ui);
 
         // OPTIONS
-        w::section(ui, f, "Options");
+        w::section(ui, kit, "Options");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::checkbox(ui, f, "Auto-restart windows that close", None, &mut self.auto_restart);
-            w::checkbox(ui, f, "Safe mode", Some("extra compatibility"), &mut self.safe_mode);
-            w::checkbox(ui, f, "Don't spoof GPU", Some("use real adapter"), &mut self.real_gpu);
-            w::checkbox(ui, f, "Outdated GPU driver dialog", None, &mut self.gpu_dialog);
-            w::checkbox(ui, f, "Buffer Underflow Fix", None, &mut self.underflow_fix);
-            w::checkbox(ui, f, "Spoof hash for NEW windows", None, &mut self.spoof_hash);
+            w::checkbox(ui, kit, "Auto-restart windows that close", None, &mut self.auto_restart);
+            w::checkbox(ui, kit, "Safe mode", Some("extra compatibility"), &mut self.safe_mode);
+            w::checkbox(ui, kit, "Don't spoof GPU", Some("use real adapter"), &mut self.real_gpu);
+            w::checkbox(ui, kit, "Outdated GPU driver dialog", None, &mut self.gpu_dialog);
+            w::checkbox(ui, kit, "Buffer Underflow Fix", None, &mut self.underflow_fix);
+            w::checkbox(ui, kit, "Spoof hash for NEW windows", None, &mut self.spoof_hash);
         }
 
         grid::section_gap(ui);
 
         // PARAMETERS
-        w::section(ui, f, "Parameters");
+        w::section(ui, kit, "Parameters");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::labeled_slider(ui, f, "Windows", &mut self.windows, 1.0, 12.0, 1.0, "/ 12");
-            w::labeled_slider(ui, f, "Stagger", &mut self.stagger_ms, 0.0, 2000.0, 50.0, "ms");
+            w::labeled_slider(ui, kit, "Windows", &mut self.windows, 1.0, 12.0, 1.0, "/ 12");
+            w::labeled_slider(ui, kit, "Stagger", &mut self.stagger_ms, 0.0, 2000.0, 50.0, "ms");
         }
 
         // CTA pinned to the bottom of the pane
         grid::push_to_bottom(ui, size::CTA, 0.0);
         let label = format!("Launch {} windows", self.windows as i32);
-        if w::cta(ui, f, ButtonKind::Primary, &label) {
+        if w::cta(ui, kit, ButtonKind::Primary, &label) {
             ev = Some(LaunchEvent::Launch);
         }
         ev
     }
 
-    fn log_pane(&mut self, ui: &Ui, f: &Fonts) -> Option<LaunchEvent> {
+    fn log_pane(&mut self, ui: &Ui, kit: &Kit) -> Option<LaunchEvent> {
         let mut ev = None;
-        let copy_w = w::button_small_width(ui, f, "Copy");
-        let save_w = w::button_small_width(ui, f, "Save");
-        w::panel_header(ui, f, "Status", &[copy_w, save_w], |ui| {
-            if w::button_small(ui, f, ButtonKind::Secondary, "Copy") {
+        let copy_w = w::button_small_width(ui, kit, "Copy");
+        let save_w = w::button_small_width(ui, kit, "Save");
+        w::panel_header(ui, kit, "Status", &[copy_w, save_w], |ui| {
+            if w::button_small(ui, kit, ButtonKind::Secondary, "Copy") {
                 ev = Some(LaunchEvent::CopyLog);
             }
             ui.same_line();
-            if w::button_small(ui, f, ButtonKind::Secondary, "Save") {
+            if w::button_small(ui, kit, ButtonKind::Secondary, "Save") {
                 ev = Some(LaunchEvent::SaveLog);
             }
         });
@@ -261,7 +261,7 @@ impl LaunchScreen {
         w::log_panel(ui, "##log", [0.0, 0.0], |ui| {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
             for (t, m) in &self.log {
-                w::log_line(ui, f, *t, m, None);
+                w::log_line(ui, kit, *t, m, None);
             }
         });
         ev

@@ -32,8 +32,8 @@ mod map_demo;
 use demo::{LaunchEvent, LaunchScreen};
 use imgui::{MouseButton, TextureId};
 use imgui_kit::{
-    anim,
     fonts::{self, FontFiles},
+    Kit,
     map::TileGrid,
     theme,
     tokens::{color, size},
@@ -82,6 +82,7 @@ fn main() {
         scale,
     );
     imgui.io_mut().font_global_scale = 1.0 / scale;
+    let kit = Kit::new(fonts);
 
     let gl = glow_context(&context);
     let mut renderer = imgui_glow_renderer::AutoRenderer::initialize(gl, &mut imgui)
@@ -153,12 +154,12 @@ fn main() {
                 let ui_start = Instant::now();
                 let ui = imgui.frame();
                 let display = ui.io().display_size;
-                let ev = screen.draw(ui, &fonts, display);
+                let ev = screen.draw(ui, &kit, display);
                 // Keep frames coming while something moves, and while a text
                 // field has focus: imgui trickles queued key events one per
                 // frame (a fast burst would lose its tail otherwise) and the
                 // caret has to blink.
-                animating = anim::animating(ui) || screen.is_animating() || ui.io().want_text_input;
+                animating = kit.anim.animating(ui) || screen.is_animating() || ui.io().want_text_input;
 
                 // Map tiles the view asked for this frame: decode + upload a
                 // few, then make sure a frame shows them / loads the rest.

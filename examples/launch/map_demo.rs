@@ -8,7 +8,7 @@
 
 use imgui::{StyleVar, Ui};
 
-use imgui_kit::fonts::Fonts;
+use imgui_kit::Kit;
 use imgui_kit::map::{self, MapView, TileGrid};
 use imgui_kit::theme::ButtonKind;
 use imgui_kit::tokens::{color, space, Rgba};
@@ -272,49 +272,49 @@ impl MapPage {
     }
 
     /// Draws the toolbar, the stats line and the map filling the rest.
-    pub fn draw(&mut self, ui: &Ui, f: &Fonts) {
+    pub fn draw(&mut self, ui: &Ui, kit: &Kit) {
         self.tick(ui.io().delta_time.min(0.1));
 
         // toolbar ------------------------------------------------------------
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::L, space::S]));
-            w::switch(ui, f, "Follow", &mut self.view.follow);
+            w::switch(ui, kit, "Follow", &mut self.view.follow);
             ui.same_line();
-            w::switch(ui, f, "Walk", &mut self.walking);
+            w::switch(ui, kit, "Walk", &mut self.walking);
             ui.same_line();
-            w::switch(ui, f, "Geodata", &mut self.show_geo);
+            w::switch(ui, kit, "Geodata", &mut self.show_geo);
             ui.same_line();
-            w::switch(ui, f, "Walls", &mut self.show_walls);
+            w::switch(ui, kit, "Walls", &mut self.show_walls);
             ui.same_line();
-            w::switch(ui, f, "Blocks", &mut self.show_blocks);
+            w::switch(ui, kit, "Blocks", &mut self.show_blocks);
             ui.same_line();
-            w::switch(ui, f, "Regions", &mut self.view.show_tile_grid);
+            w::switch(ui, kit, "Regions", &mut self.view.show_tile_grid);
             ui.same_line();
-            w::switch(ui, f, "NPCs", &mut self.show_npcs);
+            w::switch(ui, kit, "NPCs", &mut self.show_npcs);
 
             let bw = [
-                w::button_small_width(ui, f, "Center"),
-                w::button_small_width(ui, f, "Fit region"),
-                w::button_small_width(ui, f, "-"),
-                w::button_small_width(ui, f, "+"),
+                w::button_small_width(ui, kit, "Center"),
+                w::button_small_width(ui, kit, "Fit region"),
+                w::button_small_width(ui, kit, "-"),
+                w::button_small_width(ui, kit, "+"),
             ];
             ui.same_line();
             imgui_kit::grid::right_align(ui, &bw);
             imgui_kit::grid::vcenter(ui, imgui_kit::tokens::size::SMALL, imgui_kit::tokens::size::CONTROL);
-            if w::button_small(ui, f, ButtonKind::Secondary, "Center") {
+            if w::button_small(ui, kit, ButtonKind::Secondary, "Center") {
                 self.view.follow = true;
             }
             ui.same_line();
-            if w::button_small(ui, f, ButtonKind::Secondary, "Fit region") {
+            if w::button_small(ui, kit, ButtonKind::Secondary, "Fit region") {
                 let avail = ui.content_region_avail();
                 self.fit_region([avail[0], avail[1] - 40.0]);
             }
             ui.same_line();
-            if w::button_small(ui, f, ButtonKind::Secondary, "-") {
+            if w::button_small(ui, kit, ButtonKind::Secondary, "-") {
                 self.view.zoom_by(0.5);
             }
             ui.same_line();
-            if w::button_small(ui, f, ButtonKind::Secondary, "+") {
+            if w::button_small(ui, kit, ButtonKind::Secondary, "+") {
                 self.view.zoom_by(2.0);
             }
         }
@@ -338,13 +338,13 @@ impl MapPage {
                 if i > 0 {
                     ui.same_line_with_spacing(0.0, space::L);
                 }
-                w::stat(ui, f, cap, val, unit, color::FG);
+                w::stat(ui, kit, cap, val, unit, color::FG);
             }
         }
         ui.dummy([0.0, space::XS]);
 
         // map ----------------------------------------------------------------
-        let _f = ui.push_font(f.mono12);
+        let _f = ui.push_font(kit.fonts.mono12);
         let player = self.player;
         let heading = self.heading;
         let sight = self.sight;

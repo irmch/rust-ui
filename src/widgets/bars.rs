@@ -1,7 +1,7 @@
 use imgui::{StyleColor, StyleVar, Ui, WindowFlags};
 
 use crate::anim;
-use crate::fonts::Fonts;
+use crate::Kit;
 use crate::grid;
 use crate::theme::ButtonKind;
 use crate::tokens::{color, size, space, Rgba};
@@ -25,7 +25,7 @@ pub enum TitleBarAction {
 /// 48 px title bar: app name / crumb on the left, tabs centred, window
 /// controls on the right (artboard 04 · section 01). Returns the window
 /// control pressed, if any, and updates `active` on tab clicks.
-pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], active: &mut usize) -> TitleBarAction {
+pub fn title_bar(ui: &Ui, kit: &Kit, app: &str, crumb: &str, tabs: &[&str], active: &mut usize) -> TitleBarAction {
     let mut action = TitleBarAction::None;
     let _pad = ui.push_style_var(StyleVar::WindowPadding([space::XL, 0.0]));
     let _bg = ui.push_style_color(StyleColor::ChildBg, color::BG2);
@@ -37,13 +37,13 @@ pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], acti
             // left: app / crumb, the 13 px texts on the 16 px app baseline
             let x0 = ui.cursor_pos()[0];
             let (y16, app_w) = {
-                let _f = ui.push_font(f.mono16b);
+                let _f = ui.push_font(kit.fonts.mono16b);
                 let y = ((size::BAR - ui.text_line_height()) / 2.0).round();
                 ui.set_cursor_pos([x0, y]);
                 ui.text(app);
                 (y, ui.calc_text_size(app)[0])
             };
-            let y13 = y16 + ascent(ui, f.mono16b) - ascent(ui, f.mono13);
+            let y13 = y16 + ascent(ui, kit.fonts.mono16b) - ascent(ui, kit.fonts.mono13);
             let x = x0 + app_w + space::S;
             ui.set_cursor_pos([x, y13]);
             ui.text_colored(color::FG3, "/");
@@ -56,7 +56,7 @@ pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], acti
             let avail = ui.window_size()[0];
             let tabs_x = ((avail - total) / 2.0).round();
             let tabs_y = (size::BAR - size::CONTROL) / 2.0;
-            let slide = anim::settings().tabs;
+            let slide = kit.anim.settings().tabs;
             if slide {
                 // One highlight rect that eases from the old tab to the new one;
                 // the tab buttons then draw no background of their own.
@@ -68,8 +68,8 @@ pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], acti
                     }
                     x += w + space::XS;
                 }
-                let hx = anim::approach(ui, anim::key(ui, "##tabs_hl_x"), hl_x, anim::TABS, true);
-                let hw = anim::approach(ui, anim::key(ui, "##tabs_hl_w"), hl_w, anim::TABS, true);
+                let hx = kit.anim.approach(ui, anim::key(ui, "##tabs_hl_x"), hl_x, anim::TABS, true);
+                let hw = kit.anim.approach(ui, anim::key(ui, "##tabs_hl_w"), hl_w, anim::TABS, true);
                 let wp = ui.window_pos();
                 let a = [wp[0] + hx, wp[1] + tabs_y];
                 ui.get_window_draw_list()
@@ -83,7 +83,7 @@ pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], acti
                 if i > 0 {
                     ui.same_line_with_spacing(0.0, space::XS);
                 }
-                if tab_ex(ui, f, t, *w, i == *active, !slide) {
+                if tab_ex(ui, kit, t, *w, i == *active, !slide) {
                     *active = i;
                 }
             }
@@ -143,14 +143,14 @@ pub fn window_control(ui: &Ui, which: TitleBarAction) -> bool {
 }
 
 /// One tab of the title bar: 32 px, bg-3 + bold when active, fg-2 otherwise.
-pub fn tab(ui: &Ui, f: &Fonts, label: &str, width: f32, active: bool) -> bool {
-    tab_ex(ui, f, label, width, active, true)
+pub fn tab(ui: &Ui, kit: &Kit, label: &str, width: f32, active: bool) -> bool {
+    tab_ex(ui, kit, label, width, active, true)
 }
 
 /// [`tab`] with `own_bg = false` when the caller draws the active highlight
 /// itself (the title bar's sliding one).
-fn tab_ex(ui: &Ui, f: &Fonts, label: &str, width: f32, active: bool, own_bg: bool) -> bool {
-    let _f = ui.push_font(if active { f.mono13b } else { f.mono13 });
+fn tab_ex(ui: &Ui, kit: &Kit, label: &str, width: f32, active: bool, own_bg: bool) -> bool {
+    let _f = ui.push_font(if active { kit.fonts.mono13b } else { kit.fonts.mono13 });
     let bg = if active && own_bg { color::BG3 } else { color::TRANSPARENT };
     let fg = if active { color::FG } else { color::FG2 };
     let _c = [
@@ -174,7 +174,7 @@ pub struct StatItem<'a> {
 /// 48 px status strip: stats with dividers on the left, `actions` drawn
 /// right-aligned (artboard 04 · section 01). `action_widths` must list the
 /// widths of the items `actions` draws so they can be right-aligned.
-pub fn status_strip(ui: &Ui, f: &Fonts, items: &[StatItem<'_>], action_widths: &[f32], actions: impl FnOnce(&Ui)) {
+pub fn status_strip(ui: &Ui, kit: &Kit, items: &[StatItem<'_>], action_widths: &[f32], actions: impl FnOnce(&Ui)) {
     let _pad = ui.push_style_var(StyleVar::WindowPadding([space::XL, 0.0]));
     let _bg = ui.push_style_color(StyleColor::ChildBg, color::BG1);
     ui.child_window("##statusstrip")
@@ -191,7 +191,7 @@ pub fn status_strip(ui: &Ui, f: &Fonts, items: &[StatItem<'_>], action_widths: &
                     ui.same_line_with_spacing(0.0, space::L);
                 }
                 grid::vcenter_at(ui, lh, 0.0, size::BAR);
-                stat(ui, f, it.caption, it.value, it.unit, it.color);
+                stat(ui, kit, it.caption, it.value, it.unit, it.color);
             }
             // No `same_line` here: imgui would keep the stats' line y and
             // `same_line` calls inside `actions` would snap back to it.
@@ -203,14 +203,14 @@ pub fn status_strip(ui: &Ui, f: &Fonts, items: &[StatItem<'_>], action_widths: &
 
 /// Toolbar row above a panel: caption on the left, small buttons on the
 /// right (the "STATUS   Copy Save" header of the log).
-pub fn panel_header(ui: &Ui, f: &Fonts, cap: &str, action_widths: &[f32], actions: impl FnOnce(&Ui)) {
+pub fn panel_header(ui: &Ui, kit: &Kit, cap: &str, action_widths: &[f32], actions: impl FnOnce(&Ui)) {
     let [x, y] = ui.cursor_pos();
     let cap_h = {
-        let _f = ui.push_font(f.mono10);
+        let _f = ui.push_font(kit.fonts.mono10);
         ui.text_line_height()
     };
     ui.set_cursor_pos([x, y + ((size::CONTROL - cap_h) / 2.0).round()]);
-    caption(ui, f, cap);
+    caption(ui, kit, cap);
     // No `same_line`: it would make imgui snap the actions' `same_line`
     // calls back to the caption's y.
     ui.set_cursor_pos([x, y + (size::CONTROL - size::SMALL) / 2.0]);
@@ -261,7 +261,7 @@ pub fn card(ui: &Ui, id: &str, size_: [f32; 2], body: impl FnOnce(&Ui)) {
 }
 
 /// Inline banner with a coloured border (artboard 04 · section 14).
-pub fn banner(ui: &Ui, f: &Fonts, kind: TagKind, text: &str, action: Option<&str>) -> bool {
+pub fn banner(ui: &Ui, kit: &Kit, kind: TagKind, text: &str, action: Option<&str>) -> bool {
     let (bg, border, fg) = kind.colors();
     let _bs = ui.push_style_var(StyleVar::ChildBorderSize(size::BORDER));
     let _pad = ui.push_style_var(StyleVar::WindowPadding([size::PAD_X, space::S]));
@@ -277,11 +277,11 @@ pub fn banner(ui: &Ui, f: &Fonts, kind: TagKind, text: &str, action: Option<&str
             ui.text_colored(fg, text);
             if let Some(a) = action {
                 ui.same_line();
-                let w = button_small_width(ui, f, a);
+                let w = button_small_width(ui, kit, a);
                 grid::right_align(ui, &[w]);
                 let y = ui.cursor_pos()[1] - ((size::CONTROL - ui.text_line_height()) / 2.0).round();
                 ui.set_cursor_pos([ui.cursor_pos()[0], y + (size::CONTROL - size::SMALL) / 2.0]);
-                clicked = button_small(ui, f, ButtonKind::Secondary, a);
+                clicked = button_small(ui, kit, ButtonKind::Secondary, a);
             }
         });
     clicked

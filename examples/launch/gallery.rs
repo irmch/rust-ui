@@ -6,8 +6,7 @@
 
 use imgui::{StyleVar, TableFlags, TableRowFlags, Ui};
 
-use imgui_kit::anim;
-use imgui_kit::fonts::Fonts;
+use imgui_kit::Kit;
 use imgui_kit::grid::{self, Grid};
 use crate::map_demo::MapPage;
 use imgui_kit::theme::ButtonKind;
@@ -74,15 +73,15 @@ const ACCOUNTS: [(&str, &str, TagKind, &str); 6] = [
 
 impl Gallery {
     /// Draws the gallery page for `tab` (1 ..= 7) into the current window.
-    pub fn draw(&mut self, ui: &Ui, f: &Fonts, tab: usize) {
+    pub fn draw(&mut self, ui: &Ui, kit: &Kit, tab: usize) {
         match tab {
-            1 => self.accounts(ui, f),
-            2 => self.instances(ui, f),
-            3 => self.proxies(ui, f),
-            4 => self.resources(ui, f),
-            5 => self.tools(ui, f),
-            7 => self.map.draw(ui, f),
-            _ => self.settings(ui, f),
+            1 => self.accounts(ui, kit),
+            2 => self.instances(ui, kit),
+            3 => self.proxies(ui, kit),
+            4 => self.resources(ui, kit),
+            5 => self.tools(ui, kit),
+            7 => self.map.draw(ui, kit),
+            _ => self.settings(ui, kit),
         }
     }
 
@@ -104,26 +103,26 @@ impl Gallery {
     }
 
     // 1 · Accounts: cards, tags, status dots, log lines --------------------
-    fn accounts(&mut self, ui: &Ui, f: &Fonts) {
+    fn accounts(&mut self, ui: &Ui, kit: &Kit) {
         let grid = Grid::default();
 
-        w::section(ui, f, "Cards · 3 × span 4");
+        w::section(ui, kit, "Cards · 3 × span 4");
         let switches = &mut self.switches;
         let mut clicked: Vec<String> = Vec::new();
         grid.row(ui, "cards", &[4, 4, 4], |ui, i, width| {
             let (mail, status, kind, proxy) = ACCOUNTS[i];
             w::card(ui, &format!("##card{i}"), [width, CARD_H], |ui| {
-                w::text_bold(ui, f, mail, color::FG);
-                w::tag(ui, f, kind, status);
+                w::text_bold(ui, kit, mail, color::FG);
+                w::tag(ui, kit, kind, status);
                 ui.same_line_with_spacing(0.0, space::S);
                 w::status_dot(ui, status_color(kind), proxy);
                 let on = &mut switches[i % 4];
-                w::switch(ui, f, "Auto-restart", on);
-                if w::button_small(ui, f, ButtonKind::Secondary, "Open") {
+                w::switch(ui, kit, "Auto-restart", on);
+                if w::button_small(ui, kit, ButtonKind::Secondary, "Open") {
                     clicked.push(format!("open {mail}"));
                 }
                 ui.same_line();
-                if w::button_small(ui, f, ButtonKind::Danger, "Remove") {
+                if w::button_small(ui, kit, ButtonKind::Danger, "Remove") {
                     clicked.push(format!("remove {mail}"));
                 }
             });
@@ -134,7 +133,7 @@ impl Gallery {
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Tags");
+        w::section(ui, kit, "Tags");
         for (i, (kind, text)) in [
             (TagKind::Neutral, "Idle"),
             (TagKind::Solid, "Selected"),
@@ -149,12 +148,12 @@ impl Gallery {
             if i > 0 {
                 ui.same_line_with_spacing(0.0, space::S);
             }
-            w::tag(ui, f, kind, text);
+            w::tag(ui, kit, kind, text);
         }
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Status dots");
+        w::section(ui, kit, "Status dots");
         for (i, (col, text)) in [
             (color::OK, "Online"),
             (color::WARN, "Degraded"),
@@ -173,24 +172,24 @@ impl Gallery {
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Log lines");
+        w::section(ui, kit, "Log lines");
         w::panel(ui, "##acc_log", [0.0, 7.0 * 16.0 + 2.0 * space::S], |ui| {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::log_line(ui, f, 0.000, "Default line", None);
-            w::log_line(ui, f, 0.084, "Success line", Some(color::OK));
-            w::log_line(ui, f, 0.168, "Warning line", Some(color::WARN));
-            w::log_line(ui, f, 0.252, "Error line", Some(color::ERR));
-            w::log_line(ui, f, 0.336, "Info line", Some(color::INFO));
-            w::log_line(ui, f, 0.420, "Muted line", Some(color::FG3));
+            w::log_line(ui, kit, 0.000, "Default line", None);
+            w::log_line(ui, kit, 0.084, "Success line", Some(color::OK));
+            w::log_line(ui, kit, 0.168, "Warning line", Some(color::WARN));
+            w::log_line(ui, kit, 0.252, "Error line", Some(color::ERR));
+            w::log_line(ui, kit, 0.336, "Info line", Some(color::INFO));
+            w::log_line(ui, kit, 0.420, "Muted line", Some(color::FG3));
             for e in &self.events {
-                w::log_line(ui, f, 1.0, e, Some(color::FG2));
+                w::log_line(ui, kit, 1.0, e, Some(color::FG2));
             }
         });
     }
 
     // 2 · Instances: table, progress -----------------------------------------
-    fn instances(&mut self, ui: &Ui, f: &Fonts) {
-        w::section(ui, f, "Table · 32 px rows");
+    fn instances(&mut self, ui: &Ui, kit: &Kit) {
+        w::section(ui, kit, "Table · 32 px rows");
         let flags = TableFlags::ROW_BG | TableFlags::BORDERS_INNER_H | TableFlags::SIZING_STRETCH_PROP;
         let _pad = ui.push_style_var(StyleVar::CellPadding([size::PAD_X, 0.0]));
         if let Some(_t) = ui.begin_table_with_flags("##instances", 5, flags) {
@@ -198,7 +197,7 @@ impl Gallery {
                 ui.table_setup_column(col);
             }
             {
-                let _f = ui.push_font(f.mono10);
+                let _f = ui.push_font(kit.fonts.mono10);
                 ui.table_next_row_with_height(TableRowFlags::HEADERS, size::TABLE_ROW);
                 for col in ["SLOT", "ACCOUNT", "STATUS", "UPTIME", "CPU"] {
                     ui.table_next_column();
@@ -211,13 +210,13 @@ impl Gallery {
                 let lh = ui.text_line_height();
                 ui.table_next_column();
                 grid::vcenter(ui, lh, size::TABLE_ROW);
-                w::text_bold(ui, f, &format!("{:02}", i + 1), color::FG);
+                w::text_bold(ui, kit, &format!("{:02}", i + 1), color::FG);
                 ui.table_next_column();
                 grid::vcenter(ui, lh, size::TABLE_ROW);
                 ui.text(mail);
                 ui.table_next_column();
                 grid::vcenter(ui, size::TAG, size::TABLE_ROW);
-                w::tag(ui, f, *kind, status);
+                w::tag(ui, kit, *kind, status);
                 ui.table_next_column();
                 grid::vcenter(ui, lh, size::TABLE_ROW);
                 w::text_muted(ui, &format!("{}h {:02}m", i * 3 + 1, i * 17 % 60));
@@ -230,7 +229,7 @@ impl Gallery {
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Progress");
+        w::section(ui, kit, "Progress");
         let t = ui.time() as f32;
         let anim = (t * 0.25).fract();
         for (i, (label, frac)) in [("Idle", 0.0), ("Quarter", 0.25), ("Half", 0.5), ("Done", 1.0), ("Animated", anim)]
@@ -240,84 +239,84 @@ impl Gallery {
             if i > 0 {
                 ui.dummy([0.0, space::S]);
             }
-            w::caption(ui, f, label);
+            w::caption(ui, kit, label);
             ui.dummy([0.0, space::XS]);
             w::progress(ui, frac, 0.0);
         }
     }
 
     // 3 · Proxies: inputs, radio, switches, checkboxes, disabled -------------
-    fn proxies(&mut self, ui: &Ui, f: &Fonts) {
-        w::section(ui, f, "Inputs");
+    fn proxies(&mut self, ui: &Ui, kit: &Kit) {
+        w::section(ui, kit, "Inputs");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, space::S]));
-            w::input(ui, f, "login", "Login", &mut self.login, 320.0, false);
-            w::input(ui, f, "password", "Password (empty, shows hint)", &mut self.password, 320.0, false);
-            w::input(ui, f, "proxy", "host:port:user:pass", &mut self.proxy, 0.0, true);
+            w::input(ui, kit, "login", "Login", &mut self.login, 320.0, false);
+            w::input(ui, kit, "password", "Password (empty, shows hint)", &mut self.password, 320.0, false);
+            w::input(ui, kit, "proxy", "host:port:user:pass", &mut self.proxy, 0.0, true);
         }
         ui.dummy([0.0, space::S]);
-        let (browse, open) = w::path_input(ui, f, "gal_path", &mut self.path);
+        let (browse, open) = w::path_input(ui, kit, "gal_path", &mut self.path);
         if browse {
             self.note("browse");
         }
         if open {
             self.note("open");
         }
-        w::verified_line(ui, f, true, "Verified", "Path of Exile 2");
-        w::verified_line(ui, f, false, "Not found", "check the path");
+        w::verified_line(ui, kit, true, "Verified", "Path of Exile 2");
+        w::verified_line(ui, kit, false, "Not found", "check the path");
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Radio");
+        w::section(ui, kit, "Radio");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::radio(ui, f, "Europe", Some("lowest ping"), &mut self.region, Region::Eu);
-            w::radio(ui, f, "United States", None, &mut self.region, Region::Us);
-            w::radio(ui, f, "Asia", Some("beta"), &mut self.region, Region::Asia);
+            w::radio(ui, kit, "Europe", Some("lowest ping"), &mut self.region, Region::Eu);
+            w::radio(ui, kit, "United States", None, &mut self.region, Region::Us);
+            w::radio(ui, kit, "Asia", Some("beta"), &mut self.region, Region::Asia);
         }
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Switches");
+        w::section(ui, kit, "Switches");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::switch(ui, f, "Rotate proxies", &mut self.switches[0]);
-            w::switch(ui, f, "Sticky sessions", &mut self.switches[1]);
-            w::switch(ui, f, "Check before launch", &mut self.switches[2]);
-            w::switch(ui, f, "Log traffic", &mut self.switches[3]);
+            w::switch(ui, kit, "Rotate proxies", &mut self.switches[0]);
+            w::switch(ui, kit, "Sticky sessions", &mut self.switches[1]);
+            w::switch(ui, kit, "Check before launch", &mut self.switches[2]);
+            w::switch(ui, kit, "Log traffic", &mut self.switches[3]);
         }
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Checkboxes");
+        w::section(ui, kit, "Checkboxes");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::checkbox(ui, f, "Checked", None, &mut self.checks[0]);
-            w::checkbox(ui, f, "Unchecked with hint", Some("explains the option"), &mut self.checks[1]);
-            w::checkbox(ui, f, "Another one", None, &mut self.checks[2]);
+            w::checkbox(ui, kit, "Checked", None, &mut self.checks[0]);
+            w::checkbox(ui, kit, "Unchecked with hint", Some("explains the option"), &mut self.checks[1]);
+            w::checkbox(ui, kit, "Another one", None, &mut self.checks[2]);
         }
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Disabled");
-        w::switch(ui, f, "Disable the block below", &mut self.disabled);
+        w::section(ui, kit, "Disabled");
+        w::switch(ui, kit, "Disable the block below", &mut self.disabled);
         ui.dummy([0.0, space::S]);
         let disabled = self.disabled;
         w::disabled(ui, disabled, || {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
             let mut on = true;
-            w::checkbox(ui, f, "Disabled checkbox", Some("40 % alpha"), &mut on);
-            w::switch(ui, f, "Disabled switch", &mut on);
+            w::checkbox(ui, kit, "Disabled checkbox", Some("40 % alpha"), &mut on);
+            w::switch(ui, kit, "Disabled switch", &mut on);
             ui.dummy([0.0, space::S]);
-            w::button(ui, f, ButtonKind::Primary, "Disabled primary");
+            w::button(ui, kit, ButtonKind::Primary, "Disabled primary");
             ui.same_line();
-            w::button(ui, f, ButtonKind::Secondary, "Disabled secondary");
+            w::button(ui, kit, ButtonKind::Secondary, "Disabled secondary");
         });
     }
 
     // 4 · Resources: stats, dividers, sliders ----------------------------------
-    fn resources(&mut self, ui: &Ui, f: &Fonts) {
-        w::section(ui, f, "Stats");
+    fn resources(&mut self, ui: &Ui, kit: &Kit) {
+        w::section(ui, kit, "Stats");
         for (i, (cap, val, unit, col)) in [
             ("Status", "Ready", "", color::OK),
             ("CPU", "42", "%", color::FG),
@@ -333,37 +332,37 @@ impl Gallery {
                 w::vdivider(ui, ui.text_line_height());
                 ui.same_line_with_spacing(0.0, space::L);
             }
-            w::stat(ui, f, cap, val, unit, col);
+            w::stat(ui, kit, cap, val, unit, col);
         }
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Labeled sliders · form row 96 | stretch | 64");
+        w::section(ui, kit, "Labeled sliders · form row 96 | stretch | 64");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            w::labeled_slider(ui, f, "Volume", &mut self.volume, 0.0, 100.0, 1.0, "%");
-            w::labeled_slider(ui, f, "Delay", &mut self.delay, 0.0, 1000.0, 10.0, "ms");
+            w::labeled_slider(ui, kit, "Volume", &mut self.volume, 0.0, 100.0, 1.0, "%");
+            w::labeled_slider(ui, kit, "Delay", &mut self.delay, 0.0, 1000.0, 10.0, "ms");
         }
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Raw slider track · 320 px");
+        w::section(ui, kit, "Raw slider track · 320 px");
         w::slider_track(ui, "raw", &mut self.raw, 0.0, 1.0, 0.05, 320.0);
         ui.same_line_with_spacing(0.0, space::L);
         grid::vcenter(ui, ui.text_line_height(), size::CONTROL);
-        w::text_bold(ui, f, &format!("{:.2}", self.raw), color::FG);
+        w::text_bold(ui, kit, &format!("{:.2}", self.raw), color::FG);
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Progress bound to the sliders");
+        w::section(ui, kit, "Progress bound to the sliders");
         w::progress(ui, self.volume / 100.0, 320.0);
         ui.dummy([0.0, space::S]);
         w::progress(ui, self.raw, 320.0);
     }
 
     // 5 · Tools: buttons, banners ----------------------------------------------
-    fn tools(&mut self, ui: &Ui, f: &Fonts) {
-        w::section(ui, f, "Buttons · 32 px");
+    fn tools(&mut self, ui: &Ui, kit: &Kit) {
+        w::section(ui, kit, "Buttons · 32 px");
         let kinds = [
             (ButtonKind::Primary, "Primary"),
             (ButtonKind::Secondary, "Secondary"),
@@ -374,7 +373,7 @@ impl Gallery {
             if i > 0 {
                 ui.same_line_with_spacing(0.0, space::S);
             }
-            if w::button(ui, f, kind, label) {
+            if w::button(ui, kit, kind, label) {
                 self.note(format!("button {label}"));
             }
         }
@@ -383,11 +382,11 @@ impl Gallery {
             if i > 0 {
                 ui.same_line_with_spacing(0.0, space::S);
             }
-            w::button_sized(ui, f, kind, &format!("{label} 160"), [160.0, size::CONTROL]);
+            w::button_sized(ui, kit, kind, &format!("{label} 160"), [160.0, size::CONTROL]);
         }
 
         ui.dummy([0.0, space::M]);
-        w::caption(ui, f, "Small · 24 px");
+        w::caption(ui, kit, "Small · 24 px");
         ui.dummy([0.0, space::XS]);
         {
             // same labels as the 32 px row: own ID scope, or the pairs share state
@@ -396,12 +395,12 @@ impl Gallery {
                 if i > 0 {
                     ui.same_line_with_spacing(0.0, space::S);
                 }
-                w::button_small(ui, f, kind, label);
+                w::button_small(ui, kit, kind, label);
             }
         }
 
         ui.dummy([0.0, space::M]);
-        w::caption(ui, f, "Icon buttons · 32 and 24 px");
+        w::caption(ui, kit, "Icon buttons · 32 and 24 px");
         ui.dummy([0.0, space::XS]);
         for (i, (kind, glyph)) in [
             (ButtonKind::Primary, "+"),
@@ -421,7 +420,7 @@ impl Gallery {
         }
 
         ui.dummy([0.0, space::M]);
-        w::caption(ui, f, "Disabled");
+        w::caption(ui, kit, "Disabled");
         ui.dummy([0.0, space::XS]);
         w::disabled(ui, true, || {
             let _id = ui.push_id("disabled");
@@ -429,24 +428,24 @@ impl Gallery {
                 if i > 0 {
                     ui.same_line_with_spacing(0.0, space::S);
                 }
-                w::button(ui, f, kind, label);
+                w::button(ui, kit, kind, label);
             }
         });
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Call to action · 48 px");
-        if w::cta(ui, f, ButtonKind::Primary, "Launch 6 windows") {
+        w::section(ui, kit, "Call to action · 48 px");
+        if w::cta(ui, kit, ButtonKind::Primary, "Launch 6 windows") {
             self.note("cta primary");
         }
         ui.dummy([0.0, space::S]);
-        w::cta(ui, f, ButtonKind::Secondary, "Secondary action");
+        w::cta(ui, kit, ButtonKind::Secondary, "Secondary action");
         ui.dummy([0.0, space::S]);
-        w::cta(ui, f, ButtonKind::Danger, "Stop everything");
+        w::cta(ui, kit, ButtonKind::Danger, "Stop everything");
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Banners");
+        w::section(ui, kit, "Banners");
         for (i, (kind, text, action)) in [
             (TagKind::Info, "6 accounts ready to launch", Some("Launch")),
             (TagKind::Ok, "All proxies are reachable", None),
@@ -460,36 +459,36 @@ impl Gallery {
             if i > 0 {
                 ui.dummy([0.0, space::S]);
             }
-            if w::banner(ui, f, kind, text, action) {
+            if w::banner(ui, kit, kind, text, action) {
                 self.note(format!("banner {text}"));
             }
         }
     }
 
     // 6 · Settings: grid rows, form rows, text styles, panels ------------------
-    fn settings(&mut self, ui: &Ui, f: &Fonts) {
+    fn settings(&mut self, ui: &Ui, kit: &Kit) {
         let grid = Grid::default();
 
-        w::section(ui, f, "Animation");
+        w::section(ui, kit, "Animation");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
-            let mut st = anim::settings();
+            let mut st = kit.anim.settings();
             let mut changed = false;
-            changed |= w::switch(ui, f, "Controls: checkbox, radio, switch", &mut st.controls);
-            changed |= w::switch(ui, f, "Tabs: sliding highlight", &mut st.tabs);
-            changed |= w::switch(ui, f, "Pages: fade and slide on tab change", &mut st.pages);
-            changed |= w::labeled_slider(ui, f, "Scale", &mut st.scale, 0.25, 4.0, 0.25, "×");
+            changed |= w::switch(ui, kit, "Controls: checkbox, radio, switch", &mut st.controls);
+            changed |= w::switch(ui, kit, "Tabs: sliding highlight", &mut st.tabs);
+            changed |= w::switch(ui, kit, "Pages: fade and slide on tab change", &mut st.pages);
+            changed |= w::labeled_slider(ui, kit, "Scale", &mut st.scale, 0.25, 4.0, 0.25, "×");
             if changed {
-                anim::set(st);
+                kit.anim.set(st);
             }
         }
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Grid row · spans 3 / 3 / 6");
+        w::section(ui, kit, "Grid row · spans 3 / 3 / 6");
         grid.row(ui, "spans", &[3, 3, 6], |ui, i, width| {
             w::panel(ui, &format!("##span{i}"), [width, 56.0], |ui| {
-                w::caption(ui, f, &format!("span {}", [3, 3, 6][i]));
+                w::caption(ui, kit, &format!("span {}", [3, 3, 6][i]));
                 ui.text(format!("{width:.0} px"));
             });
         });
@@ -502,33 +501,33 @@ impl Gallery {
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Form rows · 96 | stretch | 64");
+        w::section(ui, kit, "Form rows · 96 | stretch | 64");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
             grid::form_row(ui, "##fr_login", |ui, cell, _w| match cell {
                 grid::FormCell::Label => {
                     grid::vcenter(ui, ui.text_line_height(), size::CONTROL);
-                    w::caption(ui, f, "Login");
+                    w::caption(ui, kit, "Login");
                 }
                 grid::FormCell::Control => {
-                    w::input(ui, f, "fr_login", "Login", &mut self.login, 0.0, false);
+                    w::input(ui, kit, "fr_login", "Login", &mut self.login, 0.0, false);
                 }
                 grid::FormCell::Value => {
                     grid::vcenter(ui, size::TAG, size::CONTROL);
-                    w::tag(ui, f, TagKind::Ok, "ok");
+                    w::tag(ui, kit, TagKind::Ok, "ok");
                 }
             });
             grid::form_row(ui, "##fr_region", |ui, cell, _w| match cell {
                 grid::FormCell::Label => {
                     grid::vcenter(ui, ui.text_line_height(), size::CONTROL);
-                    w::caption(ui, f, "Region");
+                    w::caption(ui, kit, "Region");
                 }
                 grid::FormCell::Control => {
-                    w::radio(ui, f, "EU", None, &mut self.region, Region::Eu);
+                    w::radio(ui, kit, "EU", None, &mut self.region, Region::Eu);
                     ui.same_line_with_spacing(0.0, space::L);
-                    w::radio(ui, f, "US", None, &mut self.region, Region::Us);
+                    w::radio(ui, kit, "US", None, &mut self.region, Region::Us);
                     ui.same_line_with_spacing(0.0, space::L);
-                    w::radio(ui, f, "Asia", None, &mut self.region, Region::Asia);
+                    w::radio(ui, kit, "Asia", None, &mut self.region, Region::Asia);
                 }
                 grid::FormCell::Value => {
                     grid::vcenter(ui, ui.text_line_height(), size::CONTROL);
@@ -539,35 +538,35 @@ impl Gallery {
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Text styles");
+        w::section(ui, kit, "Text styles");
         {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, space::XS]));
-            w::caption(ui, f, "Caption · 10 px semibold tracked");
+            w::caption(ui, kit, "Caption · 10 px semibold tracked");
             ui.text("Body · 13 px regular");
-            w::text_bold(ui, f, "Label · 13 px bold", color::FG);
+            w::text_bold(ui, kit, "Label · 13 px bold", color::FG);
             w::text_muted(ui, "Muted · fg-2");
             ui.text_colored(color::FG3, "Disabled · fg-3");
             {
-                let _f = ui.push_font(f.mono12);
+                let _f = ui.push_font(kit.fonts.mono12);
                 ui.text("Small · 12 px for logs and cells");
             }
             {
-                let _f = ui.push_font(f.mono16b);
+                let _f = ui.push_font(kit.fonts.mono16b);
                 ui.text("Title · 16 px bold");
             }
             {
-                let _f = ui.push_font(f.mono20b);
+                let _f = ui.push_font(kit.fonts.mono20b);
                 ui.text("Display · 20 px bold · 1280");
             }
             ui.text("Body with an inline hint");
-            w::hint_inline(ui, f, "extra compatibility");
+            w::hint_inline(ui, kit, "extra compatibility");
         }
 
         grid::section_gap(ui);
 
-        w::section(ui, f, "Panel header + panel");
-        w::panel_header(ui, f, "Events", &[w::button_small_width(ui, f, "Clear")], |ui| {
-            if w::button_small(ui, f, ButtonKind::Secondary, "Clear") {
+        w::section(ui, kit, "Panel header + panel");
+        w::panel_header(ui, kit, "Events", &[w::button_small_width(ui, kit, "Clear")], |ui| {
+            if w::button_small(ui, kit, ButtonKind::Secondary, "Clear") {
                 self.events.clear();
             }
         });
@@ -578,7 +577,7 @@ impl Gallery {
                 w::text_muted(ui, "Click buttons on the other tabs to log events here.");
             }
             for (i, e) in self.events.iter().enumerate() {
-                w::log_line(ui, f, i as f32 * 0.1, e, None);
+                w::log_line(ui, kit, i as f32 * 0.1, e, None);
             }
         });
     }

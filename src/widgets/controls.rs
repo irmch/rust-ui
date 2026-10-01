@@ -1,7 +1,7 @@
 use imgui::Ui;
 
 use crate::anim;
-use crate::fonts::Fonts;
+use crate::Kit;
 use crate::tokens::{color, size, space};
 
 #[allow(unused_imports)]
@@ -14,15 +14,15 @@ use super::*;
 /// Checkbox with 18 px box, bold label and optional hint, 32 px row
 /// (artboard 03 · section 07). Checked state is a filled accent box with a
 /// dark check mark.
-pub fn checkbox(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, value: &mut bool) -> bool {
-    check_like(ui, f, label, hint, value, false)
+pub fn checkbox(ui: &Ui, kit: &Kit, label: &str, hint: Option<&str>, value: &mut bool) -> bool {
+    check_like(ui, kit, label, hint, value, false)
 }
 
 /// Radio button with the same metrics as [`checkbox`]. Sets `*current = this`
 /// when clicked.
 pub fn radio<T: PartialEq + Copy>(
     ui: &Ui,
-    f: &Fonts,
+    kit: &Kit,
     label: &str,
     hint: Option<&str>,
     current: &mut T,
@@ -30,7 +30,7 @@ pub fn radio<T: PartialEq + Copy>(
 ) -> bool {
     let mut on = *current == this;
     let was = on;
-    let clicked = check_like(ui, f, label, hint, &mut on, true);
+    let clicked = check_like(ui, kit, label, hint, &mut on, true);
     if clicked && !was {
         *current = this;
         return true;
@@ -38,17 +38,17 @@ pub fn radio<T: PartialEq + Copy>(
     false
 }
 
-pub(super) fn check_like(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, value: &mut bool, round: bool) -> bool {
+pub(super) fn check_like(ui: &Ui, kit: &Kit, label: &str, hint: Option<&str>, value: &mut bool, round: bool) -> bool {
     let _id = ui.push_id(label);
     let row_h = size::CONTROL;
     let b = size::CHECK;
     let label_w = {
-        let _f = ui.push_font(f.mono13b);
+        let _f = ui.push_font(kit.fonts.mono13b);
         ui.calc_text_size(label)[0]
     };
     let hint_w = hint
         .map(|h| {
-            let _f = ui.push_font(f.mono12);
+            let _f = ui.push_font(kit.fonts.mono12);
             ui.calc_text_size(h)[0] + space::S
         })
         .unwrap_or(0.0);
@@ -63,7 +63,7 @@ pub(super) fn check_like(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, va
     }
     let hovered = ui.is_item_hovered();
     // 0 = off, 1 = on; eases over anim::CONTROL seconds when enabled.
-    let t = anim::toggle(ui, anim::key(ui, "##box"), *value, anim::CONTROL);
+    let t = kit.anim.toggle(ui, anim::key(ui, "##box"), *value, anim::CONTROL);
     let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
     let by = p[1] + ((row_h - b) / 2.0).round();
@@ -93,13 +93,13 @@ pub(super) fn check_like(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, va
     }
     let mut x = p[0] + b + space::M;
     {
-        let _f = ui.push_font(f.mono13b);
+        let _f = ui.push_font(kit.fonts.mono13b);
         let ty = p[1] + ((row_h - ui.text_line_height()) / 2.0).round();
         dl.add_text([x, ty], fade(color::FG, al), label);
         x += label_w + space::S;
     }
     if let Some(h) = hint {
-        let _f = ui.push_font(f.mono12);
+        let _f = ui.push_font(kit.fonts.mono12);
         let ty = p[1] + ((row_h - ui.text_line_height()) / 2.0).round();
         dl.add_text([x, ty], fade(color::FG3, al), h);
     }
@@ -107,12 +107,12 @@ pub(super) fn check_like(ui: &Ui, f: &Fonts, label: &str, hint: Option<&str>, va
 }
 
 /// 36 × 20 switch with a bold label (artboard 03 · section 09).
-pub fn switch(ui: &Ui, f: &Fonts, label: &str, value: &mut bool) -> bool {
+pub fn switch(ui: &Ui, kit: &Kit, label: &str, value: &mut bool) -> bool {
     let _id = ui.push_id(label);
     let [sw, sh] = size::SWITCH;
     let row_h = size::CONTROL;
     let label_w = {
-        let _f = ui.push_font(f.mono13b);
+        let _f = ui.push_font(kit.fonts.mono13b);
         ui.calc_text_size(label)[0]
     };
     let p = ui.cursor_screen_pos();
@@ -120,7 +120,7 @@ pub fn switch(ui: &Ui, f: &Fonts, label: &str, value: &mut bool) -> bool {
     if clicked {
         *value = !*value;
     }
-    let t = anim::toggle(ui, anim::key(ui, "##sw"), *value, anim::CONTROL);
+    let t = kit.anim.toggle(ui, anim::key(ui, "##sw"), *value, anim::CONTROL);
     let al = style_alpha(ui);
     let dl = ui.get_window_draw_list();
     let y = p[1] + ((row_h - sh) / 2.0).round();
@@ -138,7 +138,7 @@ pub fn switch(ui: &Ui, f: &Fonts, label: &str, value: &mut bool) -> bool {
     dl.add_circle([kx, y + sh / 2.0], sh / 2.0 - 3.0, knob)
         .filled(true)
         .build();
-    let _f = ui.push_font(f.mono13b);
+    let _f = ui.push_font(kit.fonts.mono13b);
     let ty = p[1] + ((row_h - ui.text_line_height()) / 2.0).round();
     dl.add_text([p[0] + sw + space::M, ty], fade(color::FG, al), label);
     clicked

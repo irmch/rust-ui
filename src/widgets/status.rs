@@ -1,6 +1,6 @@
 use imgui::Ui;
 
-use crate::fonts::Fonts;
+use crate::Kit;
 use crate::tokens::{color, size, space, Rgba};
 
 #[allow(unused_imports)]
@@ -35,8 +35,8 @@ impl TagKind {
 }
 
 /// 20 px uppercase tag ("RUNNING").
-pub fn tag(ui: &Ui, f: &Fonts, kind: TagKind, text: &str) {
-    let _f = ui.push_font(f.mono10);
+pub fn tag(ui: &Ui, kit: &Kit, kind: TagKind, text: &str) {
+    let _f = ui.push_font(kit.fonts.mono10);
     let txt = text.to_uppercase();
     let tw = ui.calc_text_size(&txt)[0];
     let w = tw + 2.0 * space::S;
@@ -66,28 +66,28 @@ pub fn status_dot(ui: &Ui, col: Rgba, text: &str) {
 }
 
 /// Stat item of the status strip: `CAPTION  Value unit`. `col` colours the value.
-pub fn stat(ui: &Ui, f: &Fonts, cap: &str, value: &str, unit: &str, col: Rgba) {
+pub fn stat(ui: &Ui, kit: &Kit, cap: &str, value: &str, unit: &str, col: Rgba) {
     // The cursor marks the top of the 13 px value; the 10 px caption and the
     // unit are placed explicitly on the same baseline (no `same_line`, which
     // would snap back to whatever line y imgui remembers).
     let [x, y] = ui.cursor_pos();
-    let asc_val = ascent(ui, f.mono13b);
+    let asc_val = ascent(ui, kit.fonts.mono13b);
     let cap_txt = cap.to_uppercase();
     let cap_w = {
-        let _f = ui.push_font(f.mono10);
-        ui.set_cursor_pos([x, y + asc_val - ascent(ui, f.mono10)]);
+        let _f = ui.push_font(kit.fonts.mono10);
+        ui.set_cursor_pos([x, y + asc_val - ascent(ui, kit.fonts.mono10)]);
         ui.text_colored(color::FG3, &cap_txt);
         ui.calc_text_size(&cap_txt)[0]
     };
     let x = x + cap_w + space::S;
     let val_w = {
-        let _f = ui.push_font(f.mono13b);
+        let _f = ui.push_font(kit.fonts.mono13b);
         ui.set_cursor_pos([x, y]);
         ui.text_colored(col, value);
         ui.calc_text_size(value)[0]
     };
     if !unit.is_empty() {
-        ui.set_cursor_pos([x + val_w + space::XS, y + asc_val - ascent(ui, f.mono13)]);
+        ui.set_cursor_pos([x + val_w + space::XS, y + asc_val - ascent(ui, kit.fonts.mono13)]);
         ui.text_colored(color::FG3, unit);
     }
 }

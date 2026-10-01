@@ -1,6 +1,6 @@
 use imgui::{MouseButton, Ui};
 
-use crate::fonts::Fonts;
+use crate::Kit;
 use crate::grid;
 use crate::tokens::{color, size, space};
 
@@ -68,7 +68,7 @@ pub fn slider_track(ui: &Ui, id: &str, value: &mut f32, min: f32, max: f32, step
 #[allow(clippy::too_many_arguments)]
 pub fn labeled_slider(
     ui: &Ui,
-    f: &Fonts,
+    kit: &Kit,
     label: &str,
     value: &mut f32,
     min: f32,
@@ -81,11 +81,11 @@ pub fn labeled_slider(
     grid::form_row(ui, &id, |ui, cell, w| match cell {
         grid::FormCell::Label => {
             let cap_h = {
-                let _f = ui.push_font(f.mono10);
+                let _f = ui.push_font(kit.fonts.mono10);
                 ui.text_line_height()
             };
             grid::vcenter(ui, cap_h, size::CONTROL);
-            caption(ui, f, label);
+            caption(ui, kit, label);
         }
         grid::FormCell::Control => {
             changed = slider_track(ui, label, value, min, max, step, w);
@@ -97,7 +97,7 @@ pub fn labeled_slider(
                 format!("{value:.2}")
             };
             let tw = {
-                let _f = ui.push_font(f.mono13b);
+                let _f = ui.push_font(kit.fonts.mono13b);
                 ui.calc_text_size(&txt)[0]
             };
             let sw = if suffix.is_empty() {
@@ -107,7 +107,7 @@ pub fn labeled_slider(
             };
             grid::right_align(ui, &[tw + sw]);
             grid::vcenter(ui, ui.text_line_height(), size::CONTROL);
-            text_bold(ui, f, &txt, color::FG);
+            text_bold(ui, kit, &txt, color::FG);
             if !suffix.is_empty() {
                 ui.same_line_with_spacing(0.0, space::XS);
                 ui.text_colored(color::FG3, suffix);
