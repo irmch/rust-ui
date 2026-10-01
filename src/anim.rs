@@ -59,6 +59,8 @@ struct State {
     settings: Settings,
     values: HashMap<u32, Entry>,
     sweep_frame: i32,
+    /// Last frame in which some value actually moved.
+    moved_frame: i32,
 }
 
 thread_local! {
@@ -66,6 +68,7 @@ thread_local! {
         settings: Settings::default(),
         values: HashMap::new(),
         sweep_frame: 0,
+        moved_frame: -1,
     });
 }
 
@@ -135,11 +138,24 @@ fn step(ui: &Ui, key: u32, enabled: bool, advance: impl FnOnce(f32, f32) -> f32,
             st.sweep_frame = frame;
             st.values.retain(|_, e| frame - e.last_frame < 300);
         }
+        let st = &mut *st;
         let e = st.values.entry(key).or_insert(Entry { value: target, last_frame: frame });
         e.last_frame = frame;
-        e.value = advance(e.value, dt);
+        let next = advance(e.value, dt);
+        if next != e.value {
+            e.value = next;
+            st.moved_frame = frame;
+        }
         e.value
     })
+}
+
+/// Whether any animation moved during this frame (or the previous one, so a
+/// value that reached its target still gets one frame drawn at rest). Hosts
+/// that render on demand use it to decide whether to schedule another frame.
+pub fn animating(ui: &Ui) -> bool {
+    let frame = ui.frame_count();
+    STATE.with(|s| frame - s.borrow().moved_frame <= 1)
 }
 
 /// Linear progress toward `on` over `duration` seconds (scaled by

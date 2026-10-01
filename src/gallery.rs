@@ -86,6 +86,16 @@ impl Gallery {
         }
     }
 
+    /// Whether page `tab` changes by itself (needs frames without input):
+    /// the animated progress bar on Instances, the walking player on Map.
+    pub fn is_animating(&self, tab: usize) -> bool {
+        match tab {
+            2 => true,
+            7 => self.map.walking,
+            _ => false,
+        }
+    }
+
     fn note(&mut self, s: impl Into<String>) {
         self.events.push(s.into());
         if self.events.len() > 6 {

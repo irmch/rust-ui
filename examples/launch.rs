@@ -5,8 +5,16 @@
 //! Backend: winit + glutin (OpenGL) + imgui-glow-renderer. The OS window is
 //! undecorated because the kit draws its own title bar; drag the bar to move
 //! the window, the ─ □ × buttons minimize / maximize / close it.
+//!
+//! Frames are rendered on demand, not in a loop: after input, while an
+//! animation runs (`anim::animating`, `LaunchScreen::is_animating`) and at a
+//! reduced rate when the window is not focused. Idle the process sleeps in
+//! the event loop and uses no CPU; minimized it renders nothing.
 
-use std::{num::NonZeroU32, time::Instant};
+use std::{
+    num::NonZeroU32,
+    time::{Duration, Instant},
+};
 
 use glow::HasContext;
 use glutin::{
@@ -17,6 +25,7 @@ use glutin::{
 };
 use imgui::{MouseButton, TextureId};
 use imgui_kit::{
+    anim,
     demo::{LaunchEvent, LaunchScreen},
     fonts::{self, FontFiles},
     map::TileGrid,
@@ -29,13 +38,21 @@ use raw_window_handle::HasRawWindowHandle;
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 
 const TITLE: &str = "PoEMulti · imgui_kit demo";
 const WIDTH: u32 = 1280;
 const HEIGHT: u32 = 800;
+
+/// Frame period while focused and active (vsync caps it anyway).
+const ACTIVE_PERIOD: Duration = Duration::from_millis(1000 / 60);
+/// Frame period for self-animating content while the window is not focused.
+const BACKGROUND_PERIOD: Duration = Duration::from_millis(1000 / 15);
+/// Keep rendering this long after the last input so imgui settles
+/// (hover, release, animations that start on the click).
+const INPUT_GRACE: Duration = Duration::from_millis(300);
 
 fn main() {
     let (event_loop, window, surface, context) = create_window();
@@ -66,22 +83,55 @@ fn main() {
 
     let mut screen = LaunchScreen::default();
     let mut last_frame = Instant::now();
+    // render-on-demand state
+    let mut last_input = Instant::now();
+    let mut next_frame = Instant::now();
+    let mut focused = true;
+    let mut minimized = false;
+    let mut animating = true;
     // IMGUI_KIT_FPS=1 prints frame-time stats once a second (perf checks).
     let mut stats = std::env::var_os("IMGUI_KIT_FPS").map(|_| FrameStats::default());
     let [r, g, b, _] = color::BG0;
 
     event_loop
         .run(move |event, target| match event {
-            Event::NewEvents(_) => {
+            Event::AboutToWait => {
+                // Decide whether another frame is needed and when.
+                if minimized {
+                    target.set_control_flow(ControlFlow::Wait);
+                    return;
+                }
+                let now = Instant::now();
+                let after_input = now.duration_since(last_input) < INPUT_GRACE;
+                let period = if after_input || (animating && focused) {
+                    Some(ACTIVE_PERIOD)
+                } else if animating {
+                    Some(BACKGROUND_PERIOD)
+                } else {
+                    None
+                };
+                match period {
+                    Some(p) => {
+                        if now >= next_frame {
+                            next_frame = now + p;
+                            window.request_redraw();
+                            if let Some(s) = stats.as_mut() {
+                                s.requests += 1;
+                            }
+                        }
+                        target.set_control_flow(ControlFlow::WaitUntil(next_frame));
+                    }
+                    // Nothing moves: sleep until the OS sends an event.
+                    None => target.set_control_flow(ControlFlow::Wait),
+                }
+            }
+            Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } => {
+                // Delta time between rendered frames (not between event-loop
+                // wake-ups: with on-demand rendering those are far more frequent).
                 let now = Instant::now();
                 imgui.io_mut().update_delta_time(now - last_frame);
                 last_frame = now;
-            }
-            Event::AboutToWait => {
                 platform.prepare_frame(imgui.io_mut(), &window).unwrap();
-                window.request_redraw();
-            }
-            Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } => {
                 unsafe {
                     let gl = renderer.gl_context();
                     gl.clear_color(r, g, b, 1.0);
@@ -92,6 +142,7 @@ fn main() {
                 let ui = imgui.frame();
                 let display = ui.io().display_size;
                 let ev = screen.draw(ui, &fonts, display);
+                animating = anim::animating(ui) || screen.is_animating();
 
                 // Map tiles the view asked for this frame: decode + upload.
                 load_pending_tiles(renderer.gl_context(), &mut screen.gallery.map.tiles);
@@ -128,13 +179,26 @@ fn main() {
             }
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => target.exit(),
             Event::WindowEvent { event: WindowEvent::Resized(new_size), .. } => {
-                if new_size.width > 0 && new_size.height > 0 {
+                minimized = new_size.width == 0 || new_size.height == 0;
+                if !minimized {
                     surface.resize(
                         &context,
                         NonZeroU32::new(new_size.width).unwrap(),
                         NonZeroU32::new(new_size.height).unwrap(),
                     );
                 }
+                last_input = Instant::now();
+                platform.handle_event(imgui.io_mut(), &window, &event);
+            }
+            Event::WindowEvent { event: WindowEvent::Focused(f), .. } => {
+                focused = f;
+                last_input = Instant::now();
+                platform.handle_event(imgui.io_mut(), &window, &event);
+            }
+            Event::WindowEvent { .. } => {
+                // Any other window event (mouse, keyboard, scale change, …)
+                // is input: render for a short while after it.
+                last_input = Instant::now();
                 platform.handle_event(imgui.io_mut(), &window, &event);
             }
             event => platform.handle_event(imgui.io_mut(), &window, &event),
@@ -149,6 +213,8 @@ struct FrameStats {
     samples: Vec<f32>,
     verts: i32,
     idx: i32,
+    /// Redraws requested by the scheduler since the last report.
+    requests: u32,
     since: Option<Instant>,
 }
 
@@ -163,9 +229,13 @@ impl FrameStats {
             let avg = self.samples.iter().sum::<f32>() / n;
             let max = self.samples.iter().cloned().fold(0.0, f32::max);
             println!(
-                "ui: tab {tab} zoom {zoom:.3} avg {avg:.2} ms max {max:.2} ms verts {} idx {}",
-                self.verts, self.idx
+                "ui: tab {tab} zoom {zoom:.3} frames {} requests {} avg {avg:.2} ms max {max:.2} ms verts {} idx {}",
+                self.samples.len(),
+                self.requests,
+                self.verts,
+                self.idx
             );
+            self.requests = 0;
             self.samples.clear();
             self.verts = 0;
             self.idx = 0;

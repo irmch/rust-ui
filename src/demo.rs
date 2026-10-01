@@ -273,6 +273,14 @@ impl LaunchScreen {
         ev
     }
 
+    /// Whether the screen changes without input right now: a page
+    /// transition in flight or a self-animating page. Together with
+    /// [`crate::anim::animating`] this tells a host that renders on demand
+    /// when it may stop scheduling frames.
+    pub fn is_animating(&self) -> bool {
+        self.page_t < 1.0 || self.gallery.is_animating(self.tab)
+    }
+
     /// Appends a line to the status log, stamped after the last one.
     pub fn log(&mut self, message: impl Into<String>) {
         let t = self.log.last().map_or(0.0, |(t, _)| t + 0.084);
