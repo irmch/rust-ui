@@ -182,21 +182,22 @@ pub fn status_strip(ui: &Ui, kit: &Kit, items: &[StatItem<'_>], action_widths: &
         .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE | WindowFlags::ALWAYS_USE_WINDOW_PADDING)
         .build(|| {
             bottom_border(ui);
+            let row = grid::Row::start(ui, size::BAR);
             let lh = ui.text_line_height();
             for (i, it) in items.iter().enumerate() {
                 if i > 0 {
                     ui.same_line_with_spacing(0.0, space::L);
-                    grid::vcenter_at(ui, size::SMALL, 0.0, size::BAR);
+                    row.place_here(ui, size::SMALL);
                     vdivider(ui, size::SMALL);
                     ui.same_line_with_spacing(0.0, space::L);
                 }
-                grid::vcenter_at(ui, lh, 0.0, size::BAR);
+                row.place_here(ui, lh);
                 stat(ui, kit, it.caption, it.value, it.unit, it.color);
             }
             // No `same_line` here: imgui would keep the stats' line y and
             // `same_line` calls inside `actions` would snap back to it.
+            row.place(ui, row.x, size::CONTROL);
             grid::right_align(ui, action_widths);
-            grid::vcenter_at(ui, size::CONTROL, 0.0, size::BAR);
             actions(ui);
         });
 }
@@ -204,19 +205,19 @@ pub fn status_strip(ui: &Ui, kit: &Kit, items: &[StatItem<'_>], action_widths: &
 /// Toolbar row above a panel: caption on the left, small buttons on the
 /// right (the "STATUS   Copy Save" header of the log).
 pub fn panel_header(ui: &Ui, kit: &Kit, cap: &str, action_widths: &[f32], actions: impl FnOnce(&Ui)) {
-    let [x, y] = ui.cursor_pos();
+    let row = grid::Row::start(ui, size::CONTROL);
     let cap_h = {
         let _f = ui.push_font(kit.fonts.mono10);
         ui.text_line_height()
     };
-    ui.set_cursor_pos([x, y + ((size::CONTROL - cap_h) / 2.0).round()]);
+    row.place(ui, row.x, cap_h);
     caption(ui, kit, cap);
     // No `same_line`: it would make imgui snap the actions' `same_line`
     // calls back to the caption's y.
-    ui.set_cursor_pos([x, y + (size::CONTROL - size::SMALL) / 2.0]);
+    row.place(ui, row.x, size::SMALL);
     grid::right_align(ui, action_widths);
     actions(ui);
-    ui.set_cursor_pos([x, y + size::CONTROL]);
+    row.end(ui);
 }
 
 /// Bordered panel (bg-0, 1 px line) that scrolls its content; used for the log.

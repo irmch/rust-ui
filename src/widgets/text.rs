@@ -31,10 +31,19 @@ pub(super) fn ascent(ui: &Ui, font: imgui::FontId) -> f32 {
     (a * ui.io().font_global_scale).round()
 }
 
+/// `text` in upper case, borrowed when it already is (no per-frame allocation).
+pub fn upper(text: &str) -> std::borrow::Cow<'_, str> {
+    if text.chars().any(char::is_lowercase) {
+        std::borrow::Cow::Owned(text.to_uppercase())
+    } else {
+        std::borrow::Cow::Borrowed(text)
+    }
+}
+
 /// Caption: 10 px semibold uppercase, fg-3 ("GAME PATH").
 pub fn caption(ui: &Ui, kit: &Kit, text: &str) {
     let _f = ui.push_font(kit.fonts.mono10);
-    ui.text_colored(color::FG3, text.to_uppercase());
+    ui.text_colored(color::FG3, upper(text));
 }
 
 /// Section header followed by the 12 px gap of the rhythm.

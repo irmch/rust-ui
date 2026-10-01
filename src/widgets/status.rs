@@ -37,7 +37,7 @@ impl TagKind {
 /// 20 px uppercase tag ("RUNNING").
 pub fn tag(ui: &Ui, kit: &Kit, kind: TagKind, text: &str) {
     let _f = ui.push_font(kit.fonts.mono10);
-    let txt = text.to_uppercase();
+    let txt = upper(text);
     let tw = ui.calc_text_size(&txt)[0];
     let w = tw + 2.0 * space::S;
     let p = ui.cursor_screen_pos();
@@ -72,7 +72,7 @@ pub fn stat(ui: &Ui, kit: &Kit, cap: &str, value: &str, unit: &str, col: Rgba) {
     // would snap back to whatever line y imgui remembers).
     let [x, y] = ui.cursor_pos();
     let asc_val = ascent(ui, kit.fonts.mono13b);
-    let cap_txt = cap.to_uppercase();
+    let cap_txt = upper(cap);
     let cap_w = {
         let _f = ui.push_font(kit.fonts.mono10);
         ui.set_cursor_pos([x, y + asc_val - ascent(ui, kit.fonts.mono10)]);

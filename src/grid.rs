@@ -165,7 +165,7 @@ pub fn form_row(ui: &Ui, id: &str, mut cell: impl FnMut(&Ui, FormCell, f32)) {
 /// line (artboard 03 · section 14): `avail − Σ buttons − gutters`.
 pub fn input_group_width(ui: &Ui, button_widths: &[f32]) -> f32 {
     let avail = ui.content_region_avail()[0];
-    let spacing = ui.clone_style().item_spacing[0];
+    let spacing = item_spacing(ui)[0];
     avail - button_widths.iter().sum::<f32>() - spacing * button_widths.len() as f32
 }
 
@@ -177,7 +177,7 @@ pub fn button_width(ui: &Ui, label: &str) -> f32 {
 /// Moves the cursor so that a group of items with `widths` ends at the
 /// right edge of the content region.
 pub fn right_align(ui: &Ui, widths: &[f32]) {
-    let spacing = ui.clone_style().item_spacing[0];
+    let spacing = item_spacing(ui)[0];
     let group: f32 = widths.iter().sum::<f32>() + spacing * (widths.len().saturating_sub(1)) as f32;
     let avail = ui.content_region_avail()[0];
     let x = ui.cursor_pos()[0] + (avail - group).max(0.0);
@@ -202,10 +202,73 @@ pub fn vcenter(ui: &Ui, item_h: f32, row_h: f32) {
 /// Vertically centres the next item of height `item_h` inside a row of
 /// `row_h` whose top is at window-relative `row_top`. Unlike [`vcenter`] this
 /// does not accumulate across `same_line` calls, so use it for every item of
-/// a bar laid out on one line.
+/// a bar laid out on one line. [`Row`] wraps the same idea with the row's
+/// geometry remembered.
 pub fn vcenter_at(ui: &Ui, item_h: f32, row_top: f32, row_h: f32) {
     let x = ui.cursor_pos()[0];
     ui.set_cursor_pos([x, row_top + ((row_h - item_h) / 2.0).round()]);
+}
+
+/// Current `style.item_spacing` without copying the whole `Style`.
+pub fn item_spacing(ui: &Ui) -> [f32; 2] {
+    let _ = ui;
+    // SAFETY: a Ui exists, so the current context and its style are valid.
+    let s = unsafe { (*imgui::sys::igGetStyle()).ItemSpacing };
+    [s.x, s.y]
+}
+
+/// A horizontal row of `height` px starting at the cursor: items are placed
+/// at explicit x positions, each vertically centred, without `same_line`.
+/// imgui's `same_line` snaps later items back to the y of the first item on
+/// the line, which is wrong as soon as items of different heights are
+/// centred; a `Row` sidesteps that by setting the cursor outright.
+///
+/// ```no_run
+/// # use imgui_kit::grid::Row;
+/// # fn f(ui: &imgui::Ui) {
+/// let row = Row::start(ui, 48.0);
+/// row.place(ui, row.x, 13.0);          // a 13 px text, centred in 48 px
+/// ui.text("Status");
+/// row.place(ui, row.x + 120.0, 32.0);  // a 32 px button further right
+/// ui.button("Launch");
+/// row.end(ui);                         // cursor below the row
+/// # }
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Row {
+    /// Window-relative x where the row started.
+    pub x: f32,
+    /// Window-relative y of the row's top edge.
+    pub top: f32,
+    pub height: f32,
+}
+
+impl Row {
+    /// Starts a row of `height` at the current cursor.
+    pub fn start(ui: &Ui, height: f32) -> Self {
+        let [x, top] = ui.cursor_pos();
+        Self { x, top, height }
+    }
+
+    /// Y of the top edge of an item `item_h` tall centred in the row.
+    pub fn y_for(&self, item_h: f32) -> f32 {
+        self.top + ((self.height - item_h) / 2.0).round()
+    }
+
+    /// Moves the cursor to `x`, centred for an item `item_h` tall.
+    pub fn place(&self, ui: &Ui, x: f32, item_h: f32) {
+        ui.set_cursor_pos([x, self.y_for(item_h)]);
+    }
+
+    /// [`Row::place`] at the current cursor x.
+    pub fn place_here(&self, ui: &Ui, item_h: f32) {
+        self.place(ui, ui.cursor_pos()[0], item_h);
+    }
+
+    /// Moves the cursor to the row's start x, just below the row.
+    pub fn end(&self, ui: &Ui) {
+        ui.set_cursor_pos([self.x, self.top + self.height]);
+    }
 }
 
 /// Gap between two sections: 24 · separator · 24 (artboard 02 · rhythm).
@@ -221,7 +284,7 @@ pub fn push_to_bottom(ui: &Ui, item_h: f32, bottom_pad: f32) {
     let avail_h = ui.content_region_avail()[1];
     let dy = avail_h - item_h - bottom_pad;
     if dy > 0.0 {
-        ui.dummy([0.0, dy - ui.clone_style().item_spacing[1]]);
+        ui.dummy([0.0, dy - item_spacing(ui)[1]]);
     }
 }
 

@@ -65,6 +65,40 @@ pub fn slider_track(ui: &Ui, id: &str, value: &mut f32, min: f32, max: f32, step
 
 /// Launcher parameter row: `CAPTION | slider | 6 / 12` (artboard 03 · section 16).
 /// `suffix` is drawn in fg-3 after the value ("/ 12", "ms").
+/// Builder form of [`labeled_slider`]:
+/// `Slider::new("Windows", 1.0, 12.0).step(1.0).suffix("/ 12").show(ui, kit, &mut v)`.
+#[derive(Clone, Copy, Debug)]
+pub struct Slider<'a> {
+    label: &'a str,
+    min: f32,
+    max: f32,
+    step: f32,
+    suffix: &'a str,
+}
+
+impl<'a> Slider<'a> {
+    pub fn new(label: &'a str, min: f32, max: f32) -> Self {
+        Self { label, min, max, step: 0.0, suffix: "" }
+    }
+
+    /// Rounds the value to multiples of `step` (`0.0` = continuous).
+    pub fn step(mut self, step: f32) -> Self {
+        self.step = step;
+        self
+    }
+
+    /// Drawn in fg-3 after the value ("/ 12", "ms").
+    pub fn suffix(mut self, suffix: &'a str) -> Self {
+        self.suffix = suffix;
+        self
+    }
+
+    /// Draws the row; returns `true` while the value changes.
+    pub fn show(self, ui: &Ui, kit: &Kit, value: &mut f32) -> bool {
+        labeled_slider(ui, kit, self.label, value, self.min, self.max, self.step, self.suffix)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn labeled_slider(
     ui: &Ui,

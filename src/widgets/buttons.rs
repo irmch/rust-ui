@@ -52,7 +52,7 @@ pub fn icon_button(ui: &Ui, kind: ButtonKind, id: &str, glyph: &str, small: bool
 pub fn cta(ui: &Ui, kit: &Kit, kind: ButtonKind, label: &str) -> bool {
     let _f = ui.push_font(kit.fonts.mono13b);
     let _c = kind.push(ui);
-    ui.button_with_size(label.to_uppercase(), [grid::FILL, size::CTA])
+    ui.button_with_size(upper(label), [grid::FILL, size::CTA])
 }
 
 /// Disabled wrapper: 40 % alpha and no interaction.
