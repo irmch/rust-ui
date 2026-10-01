@@ -1,4 +1,4 @@
-//! Map page of the demo: a Lineage 2 style world drawn with [`crate::map`].
+//! Map page of the demo: a Lineage 2 style world drawn with [`imgui_kit::map`].
 //!
 //! The world is cut like L2 geodata: regions of 32768 units (one map image
 //! each, named `x_y`), blocks of 8 × 8 cells, cells of 16 units. Geodata and
@@ -8,14 +8,14 @@
 
 use imgui::{StyleVar, Ui};
 
-use crate::fonts::Fonts;
-use crate::map::{self, MapView, TileGrid};
-use crate::theme::ButtonKind;
-use crate::tokens::{color, space, Rgba};
+use imgui_kit::fonts::Fonts;
+use imgui_kit::map::{self, MapView, TileGrid};
+use imgui_kit::theme::ButtonKind;
+use imgui_kit::tokens::{color, space, Rgba};
 
 /// Fill of blocked cells (buildings): error red at 45 %.
 const WALL_FILL: Rgba = [0.91, 0.38, 0.36, 0.45];
-use crate::widgets as w;
+use imgui_kit::widgets as w;
 
 /// Lineage 2 world layout constants.
 pub mod l2 {
@@ -299,8 +299,8 @@ impl MapPage {
                 w::button_small_width(ui, f, "+"),
             ];
             ui.same_line();
-            crate::grid::right_align(ui, &bw);
-            crate::grid::vcenter(ui, crate::tokens::size::SMALL, crate::tokens::size::CONTROL);
+            imgui_kit::grid::right_align(ui, &bw);
+            imgui_kit::grid::vcenter(ui, imgui_kit::tokens::size::SMALL, imgui_kit::tokens::size::CONTROL);
             if w::button_small(ui, f, ButtonKind::Secondary, "Center") {
                 self.view.follow = true;
             }

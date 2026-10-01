@@ -3,13 +3,13 @@
 
 use imgui::{Condition, StyleVar, Ui, WindowFlags};
 
-use crate::anim;
-use crate::fonts::Fonts;
+use imgui_kit::anim;
+use imgui_kit::fonts::Fonts;
 use crate::gallery::Gallery;
-use crate::grid::{self, Grid, Pane};
-use crate::theme::ButtonKind;
-use crate::tokens::{color, size, space};
-use crate::widgets::{self as w, StatItem, TitleBarAction};
+use imgui_kit::grid::{self, Grid, Pane};
+use imgui_kit::theme::ButtonKind;
+use imgui_kit::tokens::{color, size, space};
+use imgui_kit::widgets::{self as w, StatItem, TitleBarAction};
 
 /// State of the demo screen.
 pub struct LaunchScreen {
@@ -269,7 +269,7 @@ impl LaunchScreen {
 
     /// Whether the screen changes without input right now: a page
     /// transition in flight or a self-animating page. Together with
-    /// [`crate::anim::animating`] this tells a host that renders on demand
+    /// [`imgui_kit::anim::animating`] this tells a host that renders on demand
     /// when it may stop scheduling frames.
     pub fn is_animating(&self) -> bool {
         self.page_t < 1.0 || self.gallery.is_animating(self.tab)

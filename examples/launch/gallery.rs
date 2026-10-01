@@ -6,13 +6,13 @@
 
 use imgui::{StyleVar, TableFlags, TableRowFlags, Ui};
 
-use crate::anim;
-use crate::fonts::Fonts;
-use crate::grid::{self, Grid};
+use imgui_kit::anim;
+use imgui_kit::fonts::Fonts;
+use imgui_kit::grid::{self, Grid};
 use crate::map_demo::MapPage;
-use crate::theme::ButtonKind;
-use crate::tokens::{color, size, space};
-use crate::widgets::{self as w, TagKind};
+use imgui_kit::theme::ButtonKind;
+use imgui_kit::tokens::{color, size, space};
+use imgui_kit::widgets::{self as w, TagKind};
 
 /// Radio group value of the gallery.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -584,7 +584,7 @@ impl Gallery {
     }
 }
 
-fn status_color(kind: TagKind) -> crate::tokens::Rgba {
+fn status_color(kind: TagKind) -> imgui_kit::tokens::Rgba {
     match kind {
         TagKind::Ok => color::OK,
         TagKind::Warn => color::WARN,

@@ -1,4 +1,6 @@
-//! Runs the reference Launch screen in a real window.
+//! Runs the reference Launch screen in a real window. The screen itself
+//! (`demo`), the widget gallery (`gallery`) and the Map tab (`map_demo`) are
+//! modules of this example: the library ships no demo code.
 //!
 //!     cargo run --example launch
 //!
@@ -23,13 +25,17 @@ use glutin::{
     display::{GetGlDisplay, GlDisplay},
     surface::{GlSurface, Surface, SurfaceAttributesBuilder, SwapInterval, WindowSurface},
 };
+mod demo;
+mod gallery;
+mod map_demo;
+
+use demo::{LaunchEvent, LaunchScreen};
 use imgui::{MouseButton, TextureId};
 use imgui_kit::{
     anim,
-    demo::{LaunchEvent, LaunchScreen},
     fonts::{self, FontFiles},
     map::TileGrid,
-    map_demo, theme,
+    theme,
     tokens::{color, size},
     widgets::TitleBarAction,
 };
@@ -69,9 +75,9 @@ fn main() {
     let fonts = fonts::load(
         &mut imgui,
         FontFiles {
-            regular: include_bytes!("../assets/JetBrainsMono-Regular.ttf"),
-            bold: include_bytes!("../assets/JetBrainsMono-Bold.ttf"),
-            semibold: Some(include_bytes!("../assets/JetBrainsMono-SemiBold.ttf")),
+            regular: include_bytes!("../../assets/JetBrainsMono-Regular.ttf"),
+            bold: include_bytes!("../../assets/JetBrainsMono-Bold.ttf"),
+            semibold: Some(include_bytes!("../../assets/JetBrainsMono-SemiBold.ttf")),
         },
         scale,
     );
