@@ -14,8 +14,8 @@ pub struct FontFiles<'a> {
     pub regular: &'a [u8],
     pub bold: &'a [u8],
     pub semibold: Option<&'a [u8]>,
-    /// Icon font merged into the body, bold and title fonts (not into the
-    /// 10 / 12 / 20 px ones, to keep the atlas small): e.g. Lucide with its
+    /// Icon font merged into the body, bold, small and title fonts (not into
+    /// the 10 / 20 px ones, to keep the atlas small): e.g. Lucide with its
     /// Private Use Area range. Glyphs render inline with `ui.text`.
     pub icons: Option<IconFont<'a>>,
 }
@@ -93,7 +93,7 @@ pub fn load(ctx: &mut Context, files: FontFiles<'_>, scale: f32) -> Fonts {
     // The first font added becomes the default one: body 13.
     let mono13 = add(ctx, files.regular, font::BODY, 0.0, true);
     let mono13b = add(ctx, files.bold, font::BODY, 0.0, true);
-    let mono12 = add(ctx, files.regular, font::SMALL, 0.0, false);
+    let mono12 = add(ctx, files.regular, font::SMALL, 0.0, true);
     let mono10 = add(ctx, semibold, font::CAPTION, font::CAPTION_TRACKING, false);
     let mono16b = add(ctx, files.bold, font::TITLE, 0.0, true);
     let mono20b = add(ctx, files.bold, font::DISPLAY, 0.0, false);
