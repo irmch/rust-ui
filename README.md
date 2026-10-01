@@ -37,7 +37,9 @@ match screen.draw(ui, &fonts, [w, h]) {
 }
 ```
 
-Fonts are not bundled: download JetBrains Mono and point `FontFiles` at the TTFs.
+JetBrains Mono (Regular, Bold, SemiBold; SIL OFL, see `assets/OFL.txt`) ships in
+`assets/` for the demo. In your own app, embed or load the TTFs yourself and point
+`FontFiles` at them.
 
 ## Grid in one formula
 
@@ -57,3 +59,17 @@ draws the 24 · separator · 24 rhythm, `grid::push_to_bottom` pins the CTA.
 cargo build            # needs a C++ compiler for imgui-sys
 cargo test
 ```
+
+## Running the demo
+
+The crate is a library, so there is nothing to `cargo run` by itself. The
+`examples/launch.rs` host opens the reference Launch screen in a real window
+(winit + glutin + imgui-glow-renderer, pulled in as dev-dependencies only):
+
+```
+cargo run --example launch
+```
+
+The OS window is undecorated; the kit's own title bar is the drag handle and
+its `– □ ×` buttons minimize / maximize / close the window. Screen events
+(`Launch`, `StopAll`, `Browse`, …) are printed to stdout.

@@ -199,6 +199,15 @@ pub fn vcenter(ui: &Ui, item_h: f32, row_h: f32) {
     ui.set_cursor_pos([p[0], p[1] + ((row_h - item_h) / 2.0).round()]);
 }
 
+/// Vertically centres the next item of height `item_h` inside a row of
+/// `row_h` whose top is at window-relative `row_top`. Unlike [`vcenter`] this
+/// does not accumulate across `same_line` calls, so use it for every item of
+/// a bar laid out on one line.
+pub fn vcenter_at(ui: &Ui, item_h: f32, row_top: f32, row_h: f32) {
+    let x = ui.cursor_pos()[0];
+    ui.set_cursor_pos([x, row_top + ((row_h - item_h) / 2.0).round()]);
+}
+
 /// Gap between two sections: 24 · separator · 24 (artboard 02 · rhythm).
 pub fn section_gap(ui: &Ui) {
     ui.dummy([0.0, space::XL - space::S]);

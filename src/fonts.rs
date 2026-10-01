@@ -4,7 +4,7 @@
 //! `include_bytes!("../assets/JetBrainsMono-Regular.ttf")`, so the crate ships
 //! no binary data.
 
-use imgui::{Context, FontConfig, FontId, FontSource};
+use imgui::{Context, FontConfig, FontGlyphRanges, FontId, FontSource};
 
 use crate::tokens::font;
 
@@ -33,6 +33,17 @@ pub struct Fonts {
     pub mono20b: FontId,
 }
 
+/// Code points baked into the atlas. Besides Basic Latin + Latin-1 (the
+/// imgui default) the widgets use `–` `·` (General Punctuation), `□`
+/// (Geometric Shapes) and `✓` `✕` (Dingbats).
+const GLYPH_RANGES: &[u32] = &[
+    0x0020, 0x00FF, // Basic Latin + Latin-1 Supplement (× · are here)
+    0x2010, 0x2027, // General Punctuation: dashes, bullets, ellipsis
+    0x2500, 0x25FF, // Box Drawing, Block Elements, Geometric Shapes (□)
+    0x2700, 0x27BF, // Dingbats (✓ ✕)
+    0,
+];
+
 /// Loads the atlas. `scale` is the HiDPI factor (1.0 on a 96 dpi screen);
 /// pair it with `io.font_global_scale = 1.0 / scale` or render at that scale.
 pub fn load(ctx: &mut Context, files: FontFiles<'_>, scale: f32) -> Fonts {
@@ -46,6 +57,7 @@ pub fn load(ctx: &mut Context, files: FontFiles<'_>, scale: f32) -> Fonts {
                 oversample_h: 2,
                 oversample_v: 1,
                 pixel_snap_h: true,
+                glyph_ranges: FontGlyphRanges::from_slice(GLYPH_RANGES),
                 ..FontConfig::default()
             }),
         }])

@@ -2,7 +2,7 @@
 //! (filled checkboxes, 4 px slider tracks, captions, tags, stats, bars) plus
 //! thin wrappers that apply the right font and colours to native ones.
 
-use imgui::{DrawListMut, MouseButton, StyleColor, StyleVar, Ui, WindowFlags};
+use imgui::{MouseButton, StyleColor, StyleVar, Ui, WindowFlags};
 
 use crate::fonts::Fonts;
 use crate::grid;
@@ -475,10 +475,14 @@ pub fn vdivider(ui: &Ui, h: f32) {
 }
 
 /// Draws a 1 px line along the bottom edge of the current window.
-fn bottom_border(ui: &Ui, dl: &DrawListMut) {
+///
+/// Acquires and releases the window draw list itself: only one `DrawListMut`
+/// may exist at a time, and the widgets drawn after this call need their own.
+fn bottom_border(ui: &Ui) {
     let p = ui.window_pos();
     let s = ui.window_size();
-    dl.add_line([p[0], p[1] + s[1] - 1.0], [p[0] + s[0], p[1] + s[1] - 1.0], color::LINE)
+    ui.get_window_draw_list()
+        .add_line([p[0], p[1] + s[1] - 1.0], [p[0] + s[0], p[1] + s[1] - 1.0], color::LINE)
         .build();
 }
 
@@ -506,16 +510,15 @@ pub fn title_bar(ui: &Ui, f: &Fonts, app: &str, crumb: &str, tabs: &[&str], acti
         .size([0.0, size::BAR])
         .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE | WindowFlags::ALWAYS_USE_WINDOW_PADDING)
         .build(|| {
-            let dl = ui.get_window_draw_list();
-            bottom_border(ui, &dl);
+            bottom_border(ui);
             // left: app / crumb
             {
                 let _f = ui.push_font(f.mono16b);
-                grid::vcenter(ui, ui.text_line_height(), size::BAR);
+                grid::vcenter_at(ui, ui.text_line_height(), 0.0, size::BAR);
                 ui.text(app);
             }
             ui.same_line_with_spacing(0.0, space::S);
-            grid::vcenter(ui, ui.text_line_height(), size::BAR - (size::BAR - ui.text_line_height()) / 2.0 * 0.0);
+            grid::vcenter_at(ui, ui.text_line_height(), 0.0, size::BAR);
             ui.text_colored(color::FG3, "/");
             ui.same_line_with_spacing(0.0, space::S);
             ui.text_colored(color::FG2, crumb);
@@ -585,22 +588,22 @@ pub fn status_strip(ui: &Ui, f: &Fonts, items: &[StatItem<'_>], action_widths: &
         .size([0.0, size::BAR])
         .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE | WindowFlags::ALWAYS_USE_WINDOW_PADDING)
         .build(|| {
-            let dl = ui.get_window_draw_list();
-            bottom_border(ui, &dl);
+            bottom_border(ui);
             let lh = ui.text_line_height();
             for (i, it) in items.iter().enumerate() {
                 if i > 0 {
                     ui.same_line_with_spacing(0.0, space::L);
-                    grid::vcenter(ui, size::SMALL, size::BAR);
+                    grid::vcenter_at(ui, size::SMALL, 0.0, size::BAR);
                     vdivider(ui, size::SMALL);
                     ui.same_line_with_spacing(0.0, space::L);
                 }
-                grid::vcenter(ui, lh, size::BAR);
+                grid::vcenter_at(ui, lh, 0.0, size::BAR);
                 stat(ui, f, it.caption, it.value, it.unit, it.color);
             }
-            ui.same_line();
+            // No `same_line` here: imgui would keep the stats' line y and
+            // `same_line` calls inside `actions` would snap back to it.
             grid::right_align(ui, action_widths);
-            grid::vcenter(ui, size::CONTROL, size::BAR);
+            grid::vcenter_at(ui, size::CONTROL, 0.0, size::BAR);
             actions(ui);
         });
 }
