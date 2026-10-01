@@ -733,6 +733,19 @@ pub fn panel(ui: &Ui, id: &str, size_: [f32; 2], body: impl FnOnce(&Ui)) {
         .build(|| body(ui));
 }
 
+/// [`panel`] for logs: scrolls with the wheel and the 8 px scrollbar, and
+/// when the view is at the bottom it stays there as lines are appended
+/// (scroll up to read back, scroll down to re-attach).
+pub fn log_panel(ui: &Ui, id: &str, size_: [f32; 2], body: impl FnOnce(&Ui)) {
+    panel(ui, id, size_, |ui| {
+        let at_bottom = ui.scroll_y() >= ui.scroll_max_y() - 1.0;
+        body(ui);
+        if at_bottom {
+            ui.set_scroll_here_y_with_ratio(1.0);
+        }
+    });
+}
+
 /// Card: bg-1, 1 px line, 16 px padding. `size` as in [`panel`]: `0.0`
 /// fills the remaining width / height (imgui child windows cannot size
 /// themselves to their content, so give cards in a row an explicit height).

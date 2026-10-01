@@ -99,6 +99,7 @@ impl LaunchScreen {
             .build(|| {
                 ev = self.body(ui, f, display_size[0]);
             });
+        self.react(ev);
         ev
     }
 
@@ -257,12 +258,41 @@ impl LaunchScreen {
             }
         });
         ui.dummy([0.0, space::M - space::S]);
-        w::panel(ui, "##log", [0.0, 0.0], |ui| {
+        w::log_panel(ui, "##log", [0.0, 0.0], |ui| {
             let _sp = ui.push_style_var(StyleVar::ItemSpacing([space::S, 0.0]));
             for (t, m) in &self.log {
                 w::log_line(ui, f, *t, m, None);
             }
         });
         ev
+    }
+
+    /// Appends a line to the status log, stamped after the last one.
+    pub fn log(&mut self, message: impl Into<String>) {
+        let t = self.log.last().map_or(0.0, |(t, _)| t + 0.084);
+        self.log.push((t, message.into()));
+    }
+
+    /// Reacts to the screen's own events so the demo feels alive: `Launch`
+    /// logs one line per window, `StopAll` logs the stop, `CopyLog` /
+    /// `SaveLog` acknowledge. The host still receives the event.
+    fn react(&mut self, ev: LaunchEvent) {
+        match ev {
+            LaunchEvent::Launch => {
+                let n = self.windows as i32;
+                self.log(format!("Launching {n} windows, stagger {} ms", self.stagger_ms as i32));
+                for i in 1..=n {
+                    self.log(format!("Window {i}/{n} started on proxy {i}"));
+                }
+                self.status = "Running";
+            }
+            LaunchEvent::StopAll => {
+                self.log("Stop requested, closing all windows");
+                self.status = "Ready";
+            }
+            LaunchEvent::CopyLog => self.log("Log copied to clipboard"),
+            LaunchEvent::SaveLog => self.log("Log saved"),
+            _ => {}
+        }
     }
 }
